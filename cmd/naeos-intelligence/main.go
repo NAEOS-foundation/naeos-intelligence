@@ -18,18 +18,22 @@ const applicationName = "NAEOS Intelligence"
 
 func run() error {
 	cfg, err := config.Load(os.Environ())
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	addr := os.Getenv("NAEOS_INTELLIGENCE_HTTP_ADDR")
-	if addr == "" { addr = "127.0.0.1:8080" }
+	if addr == "" {
+		addr = "127.0.0.1:8080"
+	}
 
 	server := &http.Server{
-		Addr: addr,
-		Handler: httpapi.NewHandler(httpapi.NewMemoryStore(), httpapi.Authenticator{}),
+		Addr:              addr,
+		Handler:           httpapi.NewHandler(httpapi.NewMemoryStore(), httpapi.Authenticator{}),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: 10 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout: 60 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -43,7 +47,9 @@ func run() error {
 
 	select {
 	case err := <-serverErr:
-		if errors.Is(err, http.ErrServerClosed) { return nil }
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
 		return err
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
