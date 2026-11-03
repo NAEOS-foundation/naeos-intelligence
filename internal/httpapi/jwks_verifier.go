@@ -19,7 +19,7 @@ import (
 
 const (
 	jwksCacheTTL = 5 * time.Minute
-	maxJWKSBytes  = 1 << 20
+	maxJWKSBytes = 1 << 20
 )
 
 type JWKSVerifier struct {
