@@ -1,0 +1,3 @@
+# Phase 2 — Configuration and Dependency Wiring
+
+Follow Copilot instructions and inspect configuration specification. Implement typed configuration loading, deterministic source precedence only if approved, startup validation, environment profiles, safe secret references, and explicit dependency wiring. Reject invalid/unknown sensitive settings as appropriate; never log secrets. Keep global mutable state out. Add unit tests for defaults, required fields, invalid values, precedence, and redaction. Do not decide unresolved precedence or secret-provider choices without maintainer review. Acceptance: validated configuration, test coverage, documented env variables and no secret leakage. Report exact checks; no unrelated changes.
