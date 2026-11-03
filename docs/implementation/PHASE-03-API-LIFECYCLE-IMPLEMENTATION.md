@@ -23,7 +23,7 @@ The API exposes a `TokenVerifier` interface intended for the approved OAuth2 Cli
 
 - Submissions start at `accepted`; they do not imply queued work, execution, or completion.
 - Server-generated request IDs use cryptographic random bytes.
-- `Idempotency-Key` is client-scoped: identical payload replay returns the original request; payload mismatch returns 409.
+- `Idempotency-Key` is client-scoped: normalized equivalent payload replay returns the original request; payload mismatch returns 409. Purpose, context source fields and desired output labels are trimmed before digesting.
 - Idempotency retention and request records are in-memory and lost on process restart. This adapter is not production-durable.
 - Cancellation is supported only while status is `accepted`, `queued`, or `requires_approval`. This prototype has no worker execution, so running cancellation/cooperative propagation is not yet applicable.
 - Unknown JSON fields, invalid payloads, and trailing JSON values are rejected. Body size is capped at 1 MiB.
@@ -44,8 +44,9 @@ The API exposes a `TokenVerifier` interface intended for the approved OAuth2 Cli
 - [x] Request body schema validation and 1 MiB bound.
 - [x] Client ownership isolation in the store interface and in-memory implementation.
 - [x] Idempotency replay and conflict behavior.
+- [x] Missing bearer token, insufficient scope, and oversized valid JSON payload rejection tests.
 - [x] Protected routes fail closed if authentication verifier is not configured.
 - [x] Bounded HTTP server timeouts and graceful shutdown.
 - [ ] Concrete JWT verifier, scopes from validated claims, and auth negative/positive contract coverage.
 - [ ] Running lifecycle transitions, cancellation race tests, durable storage and OpenAPI checks.
-- [ ] `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI.
+- [x] `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI (run #26).
