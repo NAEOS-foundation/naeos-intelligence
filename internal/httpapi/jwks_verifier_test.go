@@ -69,7 +69,7 @@ func TestJWKSVerifierRejectsBadClaimsAndAlgorithm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	verifier := &JWKSVerifier{issuer: "https://issuer.test", audience: "naeos-api"}
+	verifier := &JWKSVerifier{issuer: "https://issuer.test", audience: "naeos-api", keys: map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey}, fetchedAt: time.Now()}
 	expired := signedTestJWT(t, privateKey, "kid", map[string]any{
 		"iss": verifier.issuer,
 		"aud": verifier.audience,
