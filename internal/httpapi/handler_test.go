@@ -52,7 +52,7 @@ func TestInsufficientScopeRejected(t *testing.T) {
 
 func TestOversizedRequestBodyRejected(t *testing.T) {
 	h := testHandler()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(strings.Repeat("a", maxBodyBytes+1)))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"` + strings.Repeat("a", maxBodyBytes+1) + `","execution_mode":"analysis_only"}`))
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
