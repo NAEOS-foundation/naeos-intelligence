@@ -1,0 +1,3 @@
+# Phase 8 — Tool Registry
+
+Follow Copilot instructions and TOOL-REGISTRY specification. Implement typed tool metadata/contracts, explicit registration lifecycle, schema-based input/output validation, capability mapping, adapters, invocation mediation, policy check, approval handoff for risk-classified operations, limits and audit events. Allowlist tools only. Start with safe read-only tools if scope is not otherwise approved. Never expose arbitrary command execution or dynamically trust tool definitions from model output. Add tests for unknown tool, invalid schema, denied capability, approval required, adapter timeout, output redaction and audit. Acceptance: only registered, validated and authorized tools can run.

@@ -1,0 +1,3 @@
+# Phase 10 — Human Approval Workflow
+
+Follow Copilot instructions and APPROVAL-WORKFLOW specification, identity, policy, lifecycle and data model docs. Implement approval states, authenticated approver authorization, expiry, rejection, cancellation/invalidation, single-use consumption, immutable binding to exact action/target/parameters/request and relevant policy context, persistence/audit. Runtime must revalidate authorization and policy immediately before execution. No model may create or consume approvals. Add tests for replay, changed parameters, expiry, unauthorized approver, race/duplicate consumption, policy drift and fail-closed paths. Acceptance: approval is explicit, exact-bound, non-reusable and does not itself override current policy.

@@ -1,0 +1,3 @@
+# Phase 12 — Security Hardening
+
+Follow Copilot instructions, threat model and security requirements. Perform threat-driven review of authn/authz, tenant isolation, input validation, prompt injection, model/tool boundaries, approval replay/bypass, secret handling, persistence, dependency supply chain, container and CI. Add security regression tests and fix issues within authorized scope. Do not suppress scanner findings, loosen gates or introduce undocumented exceptions. Classify findings by severity, include file/line and evidence, and document accepted residual risks only with maintainer approval. Acceptance: all critical/high findings resolved or explicitly blocked pending approved exception; mitigations traceable to tests/specs; relevant checks pass.

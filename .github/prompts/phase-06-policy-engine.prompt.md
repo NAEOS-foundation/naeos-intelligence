@@ -1,0 +1,3 @@
+# Phase 6 — Policy Engine
+
+Follow Copilot instructions and POLICY-ENGINE specification, security requirements, tool registry and approval specs. Implement explicit allow/deny/require_approval decision model, policy input context binding actor/resource/action/parameters, deterministic precedence where approved, fail-closed unknown/error handling, decision records, and a Runtime-enforceable interface. The model/agent must not write or override policy decisions. Add unit and adversarial tests for conflict, missing policy, malformed input, bypass attempts, and audit recording. Acceptance: deny/indeterminate never execute; decisions traceable; authorization checks occur at execution boundary. Pause if policy semantics unresolved.

@@ -1,0 +1,3 @@
+# Phase 11 — Observability and Audit
+
+Follow Copilot instructions and OBSERVABILITY specification. Implement structured logs, metrics and tracing, health/readiness, correlation across request/agent/tool/policy/approval, distinct audit events, safe redaction and bounded cardinality. Avoid secrets and sensitive request content in logs, metrics labels or traces. Define actionable alerts/runbook notes where scope allows. Add tests for redaction, trace propagation, health semantics and audit completeness. Acceptance: operations traceable end-to-end; audit separated from diagnostic logs; no sensitive leakage; health responses avoid internal disclosures.

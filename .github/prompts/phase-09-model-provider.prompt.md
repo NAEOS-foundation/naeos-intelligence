@@ -1,0 +1,3 @@
+# Phase 9 — Model Provider Abstraction
+
+Follow Copilot instructions and MODEL-PROVIDER specification. Implement provider-neutral interface, model metadata/capabilities, config-based selection, adapter(s) only for explicitly approved providers, normalized errors, bounded timeout/retry, usage/cost telemetry and safe response handling. Credentials must come from approved secret references and must not appear in logs. Provider output tool calls are proposals and must route through governed Runtime. Avoid silent failover that changes data handling/security policy. Add mock-based tests for errors, retries, cancellation, malformed responses and usage tracking. Pause if provider, data classification, or fallback policy is unresolved.
