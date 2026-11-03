@@ -24,7 +24,7 @@ func testHandler() http.Handler {
 func TestHealthIsPublicAndMinimal(t *testing.T) {
 	rec := httptest.NewRecorder()
 	testHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
-	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != \`{"status":"healthy"}\` {
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"status":"healthy"}` {
 		t.Fatalf("unexpected health response: %d %s", rec.Code, rec.Body.String())
 	}
 }
@@ -32,7 +32,7 @@ func TestHealthIsPublicAndMinimal(t *testing.T) {
 func TestMissingBearerTokenRejected(t *testing.T) {
 	h := testHandler()
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":"test","execution_mode":"analysis_only"}\`)))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`)))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status=%d, want 401", rec.Code)
 	}
@@ -41,7 +41,7 @@ func TestMissingBearerTokenRejected(t *testing.T) {
 func TestInsufficientScopeRejected(t *testing.T) {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth)
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":"test","execution_mode":"analysis_only"}\`))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`))
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -64,7 +64,7 @@ func TestOversizedRequestBodyRejected(t *testing.T) {
 func TestProtectedRouteFailsClosedWithoutVerifier(t *testing.T) {
 	h := NewHandler(NewMemoryStore(), Authenticator{})
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":"test","execution_mode":"analysis_only"}\`)))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`)))
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status=%d, want 503", rec.Code)
 	}
@@ -80,7 +80,7 @@ func TestSubmitReplayAndConflict(t *testing.T) {
 		h.ServeHTTP(rec, r)
 		return rec
 	}
-	body := \`{"purpose":" inspect ","execution_mode":"analysis_only"}\`
+	body := `{"purpose":" inspect ","execution_mode":"analysis_only"}`
 	first := submit(body)
 	second := submit(body)
 	if first.Code != http.StatusAccepted || second.Code != http.StatusAccepted {
@@ -89,7 +89,7 @@ func TestSubmitReplayAndConflict(t *testing.T) {
 	if second.Header().Get("Idempotency-Replayed") != "true" {
 		t.Fatal("expected replay header")
 	}
-	conflict := submit(\`{"purpose":"different","execution_mode":"analysis_only"}\`)
+	conflict := submit(`{"purpose":"different","execution_mode":"analysis_only"}`)
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("conflict status=%d, want 409", conflict.Code)
 	}
@@ -97,7 +97,7 @@ func TestSubmitReplayAndConflict(t *testing.T) {
 
 func TestMalformedAndUnknownFieldsRejected(t *testing.T) {
 	h := testHandler()
-	for _, body := range []string{\`{"purpose":\`, \`{"purpose":"x","execution_mode":"analysis_only","extra":"no"}\`, \`{"purpose":"x","execution_mode":"analysis_only"} {}\`} {
+	for _, body := range []string{`{"purpose":`, `{"purpose":"x","execution_mode":"analysis_only","extra":"no"}`, `{"purpose":"x","execution_mode":"analysis_only"} {}`} {
 		r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
 		r.Header.Set("Authorization", "Bearer fake")
 		rec := httptest.NewRecorder()
@@ -129,7 +129,7 @@ func TestOwnerIsolationAndCancellation(t *testing.T) {
 
 func TestInvalidInputProduces422(t *testing.T) {
 	h := testHandler()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":" ","execution_mode":"analysis_only"}\`))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":" ","execution_mode":"analysis_only"}`))
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
