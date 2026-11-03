@@ -1,0 +1,560 @@
+# NAEOS Intelligence — OpenAPI Specification
+
+**File:** `api/openapi.yaml`  
+**Document ID:** NAEOS-INT-API-002  
+**Version:** 0.1.0  
+**OpenAPI Version:** 3.1.0  
+**Status:** Draft Proposed
+
+```yaml
+openapi: 3.1.0
+
+info:
+  title: NAEOS Intelligence API
+  version: 0.1.0
+  description: >
+    API for submitting, monitoring, and managing intelligence requests
+    within the NAEOS Intelligence platform.
+  contact:
+    name: NAEOS Foundation
+
+servers:
+  - url: /api/v1
+    description: Relative API base path
+
+tags:
+  - name: Intelligence
+    description: Intelligence request operations
+  - name: Health
+    description: Service health operations
+
+security:
+  - bearerAuth: []
+
+paths:
+  /intelligence/requests:
+    post:
+      tags:
+        - Intelligence
+      summary: Submit an intelligence request
+      operationId: submitIntelligenceRequest
+      description: >
+        Submits a request for intelligence processing.
+        Submission does not authorize unrestricted execution
+        or consequential actions.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntelligenceRequestInput"
+            example:
+              purpose: Analyze repository engineering risks
+              context_sources:
+                - type: repository
+                  reference: naeos
+              execution_mode: analysis_only
+              desired_outputs:
+                - risk_assessment
+                - recommendations
+              metadata:
+                source_system: naeos-core
+      responses:
+        "202":
+          description: Request accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntelligenceRequestAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/UnprocessableRequest"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /intelligence/requests/{request_id}:
+    get:
+      tags:
+        - Intelligence
+      summary: Retrieve an intelligence request
+      operationId: getIntelligenceRequest
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Intelligence request retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntelligenceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /intelligence/requests/{request_id}/cancel:
+    post:
+      tags:
+        - Intelligence
+      summary: Request cancellation
+      operationId: cancelIntelligenceRequest
+      description: >
+        Requests cancellation of an intelligence request.
+        Cancellation is not guaranteed if processing has already
+        reached a non-cancellable stage.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "202":
+          description: Cancellation request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancellationAccepted"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Retrieve service health
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Placeholder authentication scheme.
+        The final authentication mechanism must be approved
+        before production implementation.
+
+  parameters:
+    RequestId:
+      name: request_id
+      in: path
+      required: true
+      description: Unique intelligence request identifier
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >
+        Client-generated key used to prevent duplicate request
+        submissions during retries.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+
+  schemas:
+
+    IntelligenceRequestInput:
+      type: object
+      additionalProperties: false
+      required:
+        - purpose
+        - execution_mode
+      properties:
+        purpose:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Objective of the intelligence request
+
+        context_sources:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/ContextSource"
+
+        execution_mode:
+          type: string
+          enum:
+            - analysis_only
+            - governed
+
+        desired_outputs:
+          type: array
+          maxItems: 50
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+
+        metadata:
+          type: object
+          description: Non-sensitive client metadata
+          additionalProperties:
+            type: string
+            maxLength: 256
+
+    ContextSource:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - reference
+      properties:
+        type:
+          type: string
+          minLength: 1
+          maxLength: 64
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 1024
+
+    IntelligenceRequestAccepted:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+        - status
+        - created_at
+        - status_url
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        status:
+          type: string
+          const: accepted
+        created_at:
+          type: string
+          format: date-time
+        status_url:
+          type: string
+          format: uri-reference
+
+    IntelligenceRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+        - status
+        - purpose
+        - execution_mode
+        - created_at
+        - updated_at
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+
+        status:
+          $ref: "#/components/schemas/RequestStatus"
+
+        purpose:
+          type: string
+
+        execution_mode:
+          type: string
+          enum:
+            - analysis_only
+            - governed
+
+        created_at:
+          type: string
+          format: date-time
+
+        updated_at:
+          type: string
+          format: date-time
+
+        result:
+          $ref: "#/components/schemas/IntelligenceResult"
+
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+
+    RequestStatus:
+      type: string
+      enum:
+        - accepted
+        - queued
+        - running
+        - completed
+        - failed
+        - cancelled
+        - requires_approval
+
+    IntelligenceResult:
+      type: object
+      additionalProperties: false
+      properties:
+        summary:
+          type: string
+          maxLength: 10000
+
+        outputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutputReference"
+
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvidenceReference"
+
+    OutputReference:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - reference
+      properties:
+        type:
+          type: string
+          minLength: 1
+          maxLength: 128
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 1024
+
+    EvidenceReference:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - reference
+      properties:
+        type:
+          type: string
+          minLength: 1
+          maxLength: 128
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 1024
+
+    CancellationAccepted:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+        - status
+        - message
+      properties:
+        request_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - cancelled
+            - accepted
+        message:
+          type: string
+          maxLength: 1000
+
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          maxLength: 128
+        detail:
+          type: string
+          maxLength: 2000
+
+    Problem:
+      type: object
+      description: Problem Details compatible error response
+      required:
+        - type
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+          maxLength: 256
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+          maxLength: 128
+        detail:
+          type: string
+          maxLength: 2000
+        request_id:
+          type: string
+          maxLength: 128
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    Unauthorized:
+      description: Authentication is missing or invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    Forbidden:
+      description: Client is not authorized
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    NotFound:
+      description: Resource not found or not accessible
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    Conflict:
+      description: Request conflicts with current resource state
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    PayloadTooLarge:
+      description: Request payload exceeds the configured limit
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    UnprocessableRequest:
+      description: Request cannot be processed
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    RateLimited:
+      description: Client exceeded the configured request rate
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds before retry is permitted
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    InternalError:
+      description: Unexpected internal failure
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    ServiceUnavailable:
+      description: Service is temporarily unavailable
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+```
+
+## Implementation Notes
+
+The OpenAPI document is a proposed initial contract and must be validated before implementation.
+
+The following decisions remain open:
+
+- Final authentication mechanism.
+- Tenant and organization isolation model.
+- Maximum request payload size.
+- Rate limits and concurrency limits.
+- Idempotency retention period.
+- Cancellation semantics for active workflows.
+- Whether readiness and liveness endpoints should be separated.
+- Final naming and schema conventions.
+
+These decisions must be resolved through architecture and security review.
+
+## Acceptance Criteria
+
+- [ ] OpenAPI document parses successfully.
+- [ ] All endpoint operations have stable operation IDs.
+- [ ] Request and response schemas are defined.
+- [ ] Error responses follow a consistent structure.
+- [ ] Authentication requirements are explicit.
+- [ ] Security constraints are represented in the contract.
+- [ ] API contract tests can be generated or implemented.
+- [ ] API behavior remains consistent with `API-CONTRACT.md`.
+- [ ] No endpoint implicitly grants unrestricted execution.
+
+**Document Status:** Draft Proposed  
+**Version:** 0.1.0  
+**Owner:** NAEOS Intelligence Project
