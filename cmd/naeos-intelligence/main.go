@@ -16,8 +16,23 @@ import (
 
 const applicationName = "NAEOS Intelligence"
 
+func authVerifierFromEnvironment() (httpapi.TokenVerifier, error) {
+	issuer := os.Getenv("NAEOS_AUTH_ISSUER")
+	audience := os.Getenv("NAEOS_AUTH_AUDIENCE")
+	jwksURL := os.Getenv("NAEOS_AUTH_JWKS_URL")
+	if issuer == "" && audience == "" && jwksURL == "" {
+		return nil, nil // protected API stays fail-closed when auth is not configured
+	}
+	return httpapi.NewJWKSVerifier(issuer, audience, jwksURL)
+}
+
 func run() error {
 	cfg, err := config.Load(os.Environ())
+	if err != nil {
+		return err
+	}
+
+	verifier, err := authVerifierFromEnvironment()
 	if err != nil {
 		return err
 	}
@@ -29,7 +44,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.NewHandler(httpapi.NewMemoryStore(), httpapi.Authenticator{}),
+		Handler:           httpapi.NewHandler(httpapi.NewMemoryStore(), httpapi.Authenticator{Verifier: verifier}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
