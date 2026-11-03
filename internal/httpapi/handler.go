@@ -13,7 +13,7 @@ import (
 
 const maxBodyBytes = 1 << 20
 
-var correlationPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
+var correlationPattern = regexp.MustCompile(\`^[A-Za-z0-9._:-]{1,128}$\`)
 var errPayloadTooLarge = errors.New("request body exceeds 1 MiB")
 
 type Handler struct {
@@ -55,6 +55,14 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	if err := validateInput(input); err != nil {
 		writeProblem(w, r, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 		return
+	}
+	input.Purpose = strings.TrimSpace(input.Purpose)
+	for i := range input.ContextSources {
+		input.ContextSources[i].Type = strings.TrimSpace(input.ContextSources[i].Type)
+		input.ContextSources[i].Reference = strings.TrimSpace(input.ContextSources[i].Reference)
+	}
+	for i := range input.DesiredOutputs {
+		input.DesiredOutputs[i] = strings.TrimSpace(input.DesiredOutputs[i])
 	}
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if len(key) > 255 {
