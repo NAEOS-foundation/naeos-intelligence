@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -32,7 +33,9 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	var input RequestInput
 	if err := decodeBody(w, r, &input); err != nil { writeProblem(w,r,http.StatusBadRequest,"INVALID_REQUEST",err.Error()); return }
 	if err := validateInput(input); err != nil { writeProblem(w,r,http.StatusUnprocessableEntity,"VALIDATION_ERROR",err.Error()); return }
-	req, replay, err := h.store.Create(principal.ClientID, strings.TrimSpace(r.Header.Get("Idempotency-Key")), input)
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if len(key)>255 { writeProblem(w,r,http.StatusBadRequest,"INVALID_IDEMPOTENCY_KEY","Idempotency-Key must not exceed 255 characters"); return }
+	req, replay, err := h.store.Create(principal.ClientID, key, input)
 	if errors.Is(err, ErrIdempotencyConflict) { writeProblem(w,r,http.StatusConflict,"IDEMPOTENCY_CONFLICT","Idempotency key was used with a different request payload"); return }
 	if err != nil { writeProblem(w,r,http.StatusInternalServerError,"INTERNAL_ERROR","Request could not be accepted"); return }
 	statusURL := "/api/v1/intelligence/requests/" + req.RequestID
@@ -55,9 +58,7 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err,ErrNotFound) { writeProblem(w,r,http.StatusNotFound,"RESOURCE_NOT_FOUND","Request was not found"); return }
 	if errors.Is(err,ErrConflict) { writeProblem(w,r,http.StatusConflict,"REQUEST_STATE_CONFLICT","Request cannot be cancelled in its current state"); return }
 	if err != nil { writeProblem(w,r,http.StatusInternalServerError,"INTERNAL_ERROR","Cancellation could not be processed"); return }
-	message := "Cancellation completed for a request that had not started processing"
-	if req.Status == StatusCancelled { message = "Request is cancelled" }
-	writeJSON(w,http.StatusAccepted,CancellationAccepted{RequestID:req.RequestID,Status:req.Status,Message:message})
+	writeJSON(w,http.StatusAccepted,CancellationAccepted{RequestID:req.RequestID,Status:req.Status,Message:"Cancellation was accepted or request is already cancelled"})
 }
 
 func validateInput(in RequestInput) error {
@@ -86,7 +87,7 @@ func (h *Handler) requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request) {
 		id:=strings.TrimSpace(r.Header.Get("X-Request-ID")); if !correlationPattern.MatchString(id) { id=newRequestID() }
 		w.Header().Set("X-Request-ID",id)
-		next.ServeHTTP(w,r.WithContext(contextWithRequestID(r,id)))
+		next.ServeHTTP(w,r.WithContext(context.WithValue(r.Context(),requestIDKey{},id)))
 	})
 }
 
