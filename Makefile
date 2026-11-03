@@ -1,7 +1,7 @@
 .PHONY: fmt vet test build check
 
 fmt:
-	gofmt -w ./cmd
+	gofmt -w ./cmd ./internal
 
 vet:
 	go vet ./...
