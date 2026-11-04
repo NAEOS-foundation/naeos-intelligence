@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -144,9 +145,23 @@ func TestSubmitReplayAndConflict(t *testing.T) {
 	if second.Header().Get("Idempotency-Replayed") != "true" {
 		t.Fatal("expected replay header")
 	}
+	var accepted Accepted
+	if err := json.Unmarshal(first.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted response: %v", err)
+	}
+	if accepted.Status != StatusAccepted || accepted.ApprovalRequired || accepted.StatusURL == "" || first.Header().Get("Location") != accepted.StatusURL {
+		t.Fatalf("accepted response violates API contract: %+v headers=%v", accepted, first.Header())
+	}
 	conflict := submit(`{"purpose":"different","execution_mode":"analysis_only"}`)
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("conflict status=%d, want 409", conflict.Code)
+	}
+	var conflictProblem problem
+	if err := json.Unmarshal(conflict.Body.Bytes(), &conflictProblem); err != nil {
+		t.Fatalf("decode conflict problem: %v", err)
+	}
+	if conflictProblem.Code != "CONFLICT" || conflictProblem.Status != http.StatusConflict {
+		t.Fatalf("conflict problem code/status=%s/%d", conflictProblem.Code, conflictProblem.Status)
 	}
 }
 
@@ -317,5 +332,31 @@ func TestProblemResponsesMatchPublicContract(t *testing.T) {
 				t.Fatalf("problem envelope does not satisfy contract: %+v", body)
 			}
 		})
+	}
+}
+
+
+func TestMetadataPropertyLimitEnforced(t *testing.T) {
+	metadata := make(map[string]string, 51)
+	for i := 0; i < 51; i++ {
+		metadata[fmt.Sprintf("key-%d", i)] = "value"
+	}
+	body, err := json.Marshal(RequestInput{Purpose: "metadata limit", ExecutionMode: "analysis_only", Metadata: metadata})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(string(body)))
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	testHandler().ServeHTTP(rec, r)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d want=422 body=%s", rec.Code, rec.Body.String())
+	}
+	var p problem
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Code != "UNPROCESSABLE_REQUEST" {
+		t.Fatalf("code=%q want UNPROCESSABLE_REQUEST", p.Code)
 	}
 }
