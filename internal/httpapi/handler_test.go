@@ -10,6 +10,7 @@ import (
 	"testing"
 )
 
+type fakeVerifier struct {
 	principal Principal
 	err       error
 }
