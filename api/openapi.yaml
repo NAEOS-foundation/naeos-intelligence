@@ -175,6 +175,7 @@ components:
         status: { $ref: "#/components/schemas/Status" }
         purpose: { type: string }
         execution_mode: { type: string, const: analysis_only }
+        approval_required: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     CancellationAccepted:
