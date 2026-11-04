@@ -2,7 +2,7 @@
 
 **Status:** Implementation in progress — draft PR for maintainer review  
 **Phase:** 3  
-**Updated:** 2026-11-04
+**Updated:** 2026-11-05
 
 ## Implemented surface
 
@@ -34,7 +34,7 @@ When all three authentication environment variables are absent, the verifier rem
 - Lifecycle worker/scheduler, durable state-transition history, and cancellation propagation during running work: later runtime phases.
 - Identity-provider client registration/secret lifecycle, JWKS rotation operational validation, and production deployment hardening: Identity & Access implementation.
 - Real lifecycle worker/scheduler, transition history, cancellation propagation during running work: subsequent runtime phases.
-- Rate limiting, concurrency/queue controls, readiness probes, and automated OpenAPI contract conformance remain outstanding.
+- Rate limiting, concurrency/queue controls, readiness probes, full OpenAPI 3.1 schema validation, and deployment-level auth validation remain outstanding. Structured OpenAPI test coverage was added in PR #34: YAML parsing, operation/security/response assertions, and local reference resolution; this is not a full schema validator.
 - Approval workflow internals remain as non-public prototype scaffolding, but approval HTTP routes are not registered or documented in the MVP API. The MVP does not expose an operational approval workflow, consistent with `docs/vision/PROJECT-SCOPE.md`.
 - No model/tool/policy integration or consequential side-effect execution is introduced through the documented MVP API.
 
@@ -50,5 +50,5 @@ When all three authentication environment variables are absent, the verifier rem
 - [x] Bounded HTTP server timeouts and graceful shutdown.
 - [x] Concrete JWKS verifier wired by environment configuration; JWT verifier tests cover claim validation.
 - [ ] Deployment-level JWKS trust/rotation validation and end-to-end auth contract coverage.
-- [ ] Running lifecycle transitions, cancellation race tests, durable storage and OpenAPI checks.
-- [x] `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI (run #26).
+- [ ] Running lifecycle transitions, cancellation race tests, durable storage and complete OpenAPI schema validation.
+- [x] `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI (latest evidence: PR #34 Go checks).
