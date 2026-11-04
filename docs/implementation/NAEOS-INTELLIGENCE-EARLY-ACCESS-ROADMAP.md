@@ -20,6 +20,26 @@ This is a plan, not evidence of completion or production readiness. Existing imp
 - Any future execution capability requires a separately scoped design, authorization model, approval, security review, and acceptance.
 - Production rollout is not implied by completing this roadmap; it requires operational approval and release evidence.
 
+## Execution Snapshot (2026-11-04)
+
+This snapshot tracks repository work, not milestone acceptance or Early Access approval.
+
+| Milestone | Current status | Evidence / remaining gate |
+|---|---|---|
+| M0 — Documentation and Acceptance Alignment | Baseline documentation reconciliation completed; formal spec acceptance remains open | PR #23 aligned target lifecycle with MVP scope, completed normalized error properties/mapping, and clarified JWT/JWKS implementation versus deployment IAM decisions. The specifications remain Draft/Proposed until maintainer acceptance. |
+| M1 — API Contract and Lifecycle Reliability | In progress | PR #24 merged normalized public error codes and problem-envelope correlation tests; PR #25 merged metadata bounds and response-schema alignment; PR #26 merged HTTP ownership isolation, client-scoped idempotency, and terminal cancellation conflict tests. Remaining: automated OpenAPI-to-handler conformance coverage and further lifecycle/cancellation race validation. |
+| M2 — IAM Decision and Security Hardening | Blocked on explicit IAM decisions / not started | IAM-01 through IAM-14 remain owner/security decisions. No production IAM acceptance is inferred. |
+| M3 — Runtime and Worker Foundation | Not started | Requires accepted lifecycle/API contracts and approved scope. |
+| M4 — Policy and Governance Enforcement | Not started | Requires accepted policy/IAM decisions; no side-effect execution enabled. |
+| M5 — Early Access Readiness | Not started | Requires completion of prior milestones and explicit security/maintainer/operational sign-off. |
+
+### Immediate next work
+
+1. Continue M1 by adding automated OpenAPI contract conformance checks against HTTP handlers and response schemas.
+2. Add focused cancellation/state-race coverage where the current MVP behavior supports it; keep worker-runtime cases deferred until M3.
+3. Prepare the IAM decision review packet; do not resolve IAM worksheet items without the designated owner/security decision.
+4. Update this snapshot after merged work and milestone exit reviews.
+
 ## Milestones
 
 ### M0 — Documentation and Acceptance Alignment (indicative: 1 week)
