@@ -100,7 +100,7 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 	requestID := r.PathValue("request_id")
 	// Verify tenant ownership before touching approval state. Get intentionally
 	// returns the same not-found result for missing and foreign requests.
-	req, err := h.store.Get(r.Context(), p.ClientID, requestID)
+	_, err := h.store.Get(r.Context(), p.ClientID, requestID)
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -194,12 +194,12 @@ func (h *Handler) getApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"request_id":         r.PathValue("request_id"),
-		"decision":           decision.Decision,
-		"approved_by":        decision.ApprovedBy,
-		"reason":             decision.Reason,
-		"approval_required":  decision.ApprovalRequired,
-		"created_at":         decision.CreatedAt,
+		"request_id":        r.PathValue("request_id"),
+		"decision":          decision.Decision,
+		"approved_by":       decision.ApprovedBy,
+		"reason":            decision.Reason,
+		"approval_required": decision.ApprovalRequired,
+		"created_at":        decision.CreatedAt,
 	})
 }
 
