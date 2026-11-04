@@ -20,7 +20,7 @@ NAEOS Intelligence is designed to help users and engineering systems:
 - Assist with pull request reviews.
 - Integrate with NAEOS through explicit, versioned contracts.
 - Produce traceable findings and evidence.
-- Support controlled tool execution under authorization boundaries.
+- Provide read-only engineering intelligence in the MVP; controlled tool execution is a future capability requiring separate acceptance.
 
 NAEOS Intelligence is not intended to replace NAEOS Core, Runtime, or existing governance mechanisms.
 
@@ -70,7 +70,7 @@ The first development phase focuses on Engineering Intelligence.
 | Engineering Planner | Generate structured task plans and dependencies | MVP |
 | Evidence Generation | Produce traceable findings and references | MVP |
 | Knowledge Retrieval | Retrieve relevant engineering context | Future |
-| Controlled Execution | Execute approved engineering actions | Future |
+| Controlled Execution | Execute approved engineering actions only after separate authorization, approval, and security acceptance | Future |
 | Multi-Agent Coordination | Coordinate specialized agents | Future |
 
 ## Architecture
@@ -196,12 +196,11 @@ The initial MVP will not permit autonomous production deployment or unrestricted
 - Implement context building.
 - Implement planning and orchestration.
 
-### Phase 2 — Governance and Evidence
+### Phase 2 — Governance and Evidence (later-phase foundation; not MVP execution)
 
-- Implement tool registry.
-- Integrate authorization boundaries.
-- Implement approval workflows.
-- Implement audit and evidence records.
+- Define tool registry and authorization boundaries.
+- Specify approval workflows for a separately accepted execution phase.
+- Implement audit and evidence records appropriate to read-only MVP capabilities.
 
 ### Phase 3 — NAEOS Integration
 
