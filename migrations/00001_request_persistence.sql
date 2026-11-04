@@ -42,12 +42,14 @@ CREATE TABLE request_transitions (
 CREATE INDEX request_transitions_request_created_idx
     ON request_transitions (request_id, created_at, id);
 
+-- +goose StatementBegin
 CREATE FUNCTION prevent_request_transition_mutation() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql AS $
 BEGIN
     RAISE EXCEPTION 'request transition history is append-only';
 END;
-$$;
+$;
+-- +goose StatementEnd
 
 CREATE TRIGGER request_transitions_no_update
     BEFORE UPDATE OR DELETE ON request_transitions
