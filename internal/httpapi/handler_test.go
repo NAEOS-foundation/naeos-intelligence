@@ -117,7 +117,7 @@ func TestApprovalDecisionEndpointRecordsGovernedOutcome(t *testing.T) {
 		t.Fatalf("create error: %v", err)
 	}
 	h := NewHandler(store, auth)
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests/"+request.RequestID+"/approval", strings.NewReader(`{"decision":"approved","approved_by":"ops-user","reason":"review accepted"}`))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests/"+request.RequestID+"/approval", strings.NewReader(`{"decision":"approved","reason":"review accepted"}`))
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -131,8 +131,8 @@ func TestApprovalDecisionEndpointRecordsGovernedOutcome(t *testing.T) {
 	if decision.Decision != "approved" {
 		t.Fatalf("decision=%q, want approved", decision.Decision)
 	}
-	if decision.ApprovedBy != "ops-user" {
-		t.Fatalf("approved_by=%q, want ops-user", decision.ApprovedBy)
+	if decision.ApprovedBy != "client-a" {
+		t.Fatalf("approved_by=%q, want authenticated principal client-a", decision.ApprovedBy)
 	}
 	updated, err := store.Get(context.Background(), "client-a", request.RequestID)
 	if err != nil {
@@ -140,6 +140,48 @@ func TestApprovalDecisionEndpointRecordsGovernedOutcome(t *testing.T) {
 	}
 	if updated.Status != StatusQueued {
 		t.Fatalf("status=%q, want queued after approval", updated.Status)
+	}
+	if !strings.Contains(rec.Body.String(), `"status":"queued"`) {
+		t.Fatalf("response=%s, want updated queued status", rec.Body.String())
+	}
+}
+
+func TestApprovalDecisionRejectsForeignTenantWithoutMutation(t *testing.T) {
+	audit := gov.NewAuditLogger()
+	store := NewMemoryStoreWithApprovalAndAudit(gov.NewApprovalWorkflow(), audit)
+	request, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	beforeDecision, ok := store.ApprovalDecision(request.RequestID)
+	if !ok || beforeDecision.Decision != "pending" {
+		t.Fatalf("initial approval=%+v ok=%v, want pending", beforeDecision, ok)
+	}
+	beforeEvents := audit.Events()
+
+	authB := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-b", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	h := NewHandler(store, authB)
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests/"+request.RequestID+"/approval", strings.NewReader(`{"decision":"approved","approved_by":"forged-operator","reason":"unauthorized"}`))
+	r.Header.Set("Authorization", "Bearer client-b")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404: %s", rec.Code, rec.Body.String())
+	}
+	after, err := store.Get(context.Background(), "client-a", request.RequestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != StatusRequiresApproval {
+		t.Fatalf("status=%q, want unchanged requires_approval", after.Status)
+	}
+	afterDecision, ok := store.ApprovalDecision(request.RequestID)
+	if !ok || afterDecision.Decision != "pending" || afterDecision.ApprovedBy != beforeDecision.ApprovedBy {
+		t.Fatalf("approval changed after foreign attempt: %+v ok=%v", afterDecision, ok)
+	}
+	afterEvents := audit.Events()
+	if len(afterEvents) != len(beforeEvents) {
+		t.Fatalf("audit events changed: before=%d after=%d", len(beforeEvents), len(afterEvents))
 	}
 }
 
@@ -150,7 +192,7 @@ func TestApprovalDecisionCanBeRetrievedByRequestOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create error: %v", err)
 	}
-	if _, err := store.RecordApprovalDecision(request.RequestID, "approved", "ops-user", "review accepted"); err != nil {
+	if _, err := store.RecordApprovalDecision(context.Background(), "client-a", request.RequestID, "approved", "client-a", "review accepted"); err != nil {
 		t.Fatalf("record approval error: %v", err)
 	}
 	h := NewHandler(store, auth)
