@@ -29,11 +29,11 @@ The MVP MUST demonstrate the ability to:
 2. Retrieve relevant context from approved sources.
 3. Classify user intent.
 4. Generate structured plans and recommendations.
-5. Evaluate plans against governance policies.
-6. Require approval when a policy mandates it.
-7. Execute only explicitly permitted tools.
-8. Record execution events and evidence.
-9. Verify outcomes where verification is available.
+5. Assess plans and recommendations against documented governance constraints.
+6. Identify actions that would require separate authorization or approval, without initiating them.
+7. Restrict MVP tool access to read-only retrieval and analysis.
+8. Record retrieval provenance and analysis evidence.
+9. Verify findings against available source observations where verification is supported.
 10. Return structured and traceable results.
 
 ## 4. In-Scope Capabilities
@@ -60,21 +60,20 @@ The MVP MUST demonstrate the ability to:
 - Risk identification.
 - Failure conditions.
 
-### 4.4 Governance
+### 4.4 Governance Awareness
 
-- Policy-based evaluation.
-- Permission checks.
-- Approval workflow interfaces.
-- Action classification.
-- Fail-closed behavior.
+- Assess plans and recommendations against documented policy constraints.
+- Classify proposed actions by consequence and identify approval requirements.
+- Keep authorization and approval outcomes advisory for the read-only MVP; do not enforce or initiate consequential actions.
+- Fail closed when access to a read-only context source cannot be authorized.
 
-### 4.5 Tool Integration
+### 4.5 Read-Only Tool Integration
 
-- Read-only repository tools.
-- Test-result retrieval.
-- CI status retrieval.
-- Approved API integrations.
+- Read-only repository, issue, and pull request retrieval.
+- Test-result and CI status retrieval.
+- Approved read-only API integrations.
 - Tool input and output validation.
+- No write-capable or side-effecting tool path in the MVP.
 
 ### 4.6 Evidence and Observability
 
@@ -130,9 +129,9 @@ The system converts an engineering request into a structured execution plan with
 
 The system retrieves authorized CI results and provides evidence-backed failure analysis and remediation suggestions.
 
-### UC-005: Governed Tool Execution
+### UC-005: Governance Boundary Assessment
 
-The system executes an approved tool action only after satisfying authorization and approval requirements.
+The system classifies a proposed action and reports applicable policy and approval requirements. The MVP does not execute the action; governed execution belongs to a separately accepted later phase.
 
 ## 7. User Roles
 
@@ -162,10 +161,10 @@ The MVP is considered functionally acceptable when:
 - Request lifecycle states are explicit.
 - Context sources are authorized and traceable.
 - Plans are returned in a structured format.
-- Governance decisions are recorded.
-- Approval requirements cannot be bypassed by model output.
-- Tool execution is mediated by policy.
-- Execution events and evidence are persisted.
+- Governance assessments and their policy references are traceable.
+- Model output cannot grant authorization or approval.
+- The MVP exposes only authorized read-only tool paths; no consequential execution path is available.
+- Retrieval events and analysis evidence are persisted or referenced with provenance.
 - Failure paths are tested.
 - Unit and integration tests are available.
 - Security-sensitive behavior is documented.
