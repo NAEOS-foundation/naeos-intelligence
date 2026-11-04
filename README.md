@@ -2,7 +2,7 @@
 
 **An independent intelligence layer for the NAEOS ecosystem.**
 
- > Status: Implementation in Progress · MVP Foundation  
+> Status: Implementation in Progress · MVP Foundation  
 > Version: 0.1.0
 
 NAEOS Intelligence is an independent, modular intelligence service designed to provide contextual reasoning, engineering analysis, workflow planning, and governed agent assistance across the NAEOS ecosystem.
