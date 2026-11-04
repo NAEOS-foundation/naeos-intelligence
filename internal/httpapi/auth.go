@@ -34,21 +34,21 @@ type Authenticator struct{ Verifier TokenVerifier }
 func (a Authenticator) Middleware(requiredScope string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.Verifier == nil {
-			writeProblem(w, r, http.StatusServiceUnavailable, "AUTHENTICATION_NOT_CONFIGURED", "Authentication is not configured")
+			writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Authentication is not configured")
 			return
 		}
 		header := r.Header.Get("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") || strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")) == "" {
-			writeProblem(w, r, http.StatusUnauthorized, "AUTHENTICATION_REQUIRED", "A valid bearer token is required")
+			writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "A valid bearer token is required")
 			return
 		}
 		principal, err := a.Verifier.Verify(r.Context(), strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")))
 		if err != nil || principal.ClientID == "" {
-			writeProblem(w, r, http.StatusUnauthorized, "INVALID_TOKEN", "Bearer token is invalid")
+			writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Bearer token is invalid")
 			return
 		}
 		if requiredScope != "" && !principal.Scopes[requiredScope] {
-			writeProblem(w, r, http.StatusForbidden, "INSUFFICIENT_SCOPE", "Client is not authorized for this operation")
+			writeProblem(w, r, http.StatusForbidden, "FORBIDDEN", "Client is not authorized for this operation")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), principal)))
