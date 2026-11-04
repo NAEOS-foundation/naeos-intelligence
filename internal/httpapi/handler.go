@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	gov "github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
+	policy "github.com/NAEOS-foundation/naeos-intelligence/internal/policy"
 )
 
 const maxBodyBytes = 1 << 20
@@ -26,6 +29,8 @@ func NewHandler(store Store, auth Authenticator) http.Handler {
 	h := &Handler{store: store, auth: auth, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/health", h.health)
 	h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))
+	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:read", http.HandlerFunc(h.getApproval)))
+	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:write", http.HandlerFunc(h.approval)))
 	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}", auth.Middleware("intelligence:read", http.HandlerFunc(h.get)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
 	return h.requestID(h.mux)
@@ -83,7 +88,99 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	if replay {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	writeJSON(w, http.StatusAccepted, Accepted{RequestID: req.RequestID, Status: req.Status, CreatedAt: req.CreatedAt, StatusURL: statusURL})
+	writeJSON(w, http.StatusAccepted, Accepted{RequestID: req.RequestID, Status: req.Status, ApprovalRequired: req.ApprovalRequired, CreatedAt: req.CreatedAt, StatusURL: statusURL})
+}
+
+func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
+	p, ok := principalFrom(r.Context())
+	if !ok {
+		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
+		return
+	}
+	var payload struct {
+		Decision   string `json:"decision"`
+		ApprovedBy string `json:"approved_by,omitempty"`
+		Reason     string `json:"reason,omitempty"`
+	}
+	if err := decodeBody(w, r, &payload); err != nil {
+		writeProblem(w, r, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	payload.Decision = strings.TrimSpace(payload.Decision)
+	payload.ApprovedBy = strings.TrimSpace(payload.ApprovedBy)
+	payload.Reason = strings.TrimSpace(payload.Reason)
+	if payload.Decision == "" {
+		writeProblem(w, r, http.StatusBadRequest, "INVALID_DECISION", "decision is required")
+		return
+	}
+	switch strings.ToLower(payload.Decision) {
+	case "approved", "denied", "rejected":
+	default:
+		writeProblem(w, r, http.StatusBadRequest, "INVALID_DECISION", "decision must be approved or denied")
+		return
+	}
+	approver, ok := h.store.(interface {
+		RecordApprovalDecision(string, string, string, string) (gov.ApprovalDecision, error)
+	})
+	if !ok {
+		writeProblem(w, r, http.StatusServiceUnavailable, "APPROVAL_NOT_CONFIGURED", "Approval workflow is not configured")
+		return
+	}
+	decision, err := approver.RecordApprovalDecision(r.PathValue("request_id"), strings.ToLower(payload.Decision), payload.ApprovedBy, payload.Reason)
+	if errors.Is(err, ErrNotFound) {
+		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
+		return
+	}
+	if err != nil {
+		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Approval decision could not be recorded")
+		return
+	}
+	if p.ClientID != "" && payload.ApprovedBy == "" {
+		payload.ApprovedBy = p.ClientID
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"request_id":   r.PathValue("request_id"),
+		"decision":     decision.Decision,
+		"approved_by":  decision.ApprovedBy,
+		"reason":       decision.Reason,
+		"status":       StatusRequiresApproval,
+		"approval_required": decision.ApprovalRequired,
+	})
+}
+
+func (h *Handler) getApproval(w http.ResponseWriter, r *http.Request) {
+	p, ok := principalFrom(r.Context())
+	if !ok {
+		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
+		return
+	}
+	if _, err := h.store.Get(r.Context(), p.ClientID, r.PathValue("request_id")); errors.Is(err, ErrNotFound) {
+		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
+		return
+	} else if err != nil {
+		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Request could not be retrieved")
+		return
+	}
+	approver, ok := h.store.(interface {
+		ApprovalDecision(string) (gov.ApprovalDecision, bool)
+	})
+	if !ok {
+		writeProblem(w, r, http.StatusServiceUnavailable, "APPROVAL_NOT_CONFIGURED", "Approval workflow is not configured")
+		return
+	}
+	decision, ok := approver.ApprovalDecision(r.PathValue("request_id"))
+	if !ok {
+		writeProblem(w, r, http.StatusNotFound, "APPROVAL_NOT_FOUND", "Approval decision was not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"request_id":         r.PathValue("request_id"),
+		"decision":           decision.Decision,
+		"approved_by":        decision.ApprovedBy,
+		"reason":             decision.Reason,
+		"approval_required":  decision.ApprovalRequired,
+		"created_at":         decision.CreatedAt,
+	})
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -130,10 +227,11 @@ func validateInput(in RequestInput) error {
 	if strings.TrimSpace(in.Purpose) == "" || len(in.Purpose) > 2000 {
 		return errors.New("purpose must contain 1 to 2000 characters")
 	}
-	// The MVP is strictly analysis-only. Governed execution requires separately
-	// accepted authorization, approval, audit, and runtime enforcement contracts.
-	if in.ExecutionMode != "analysis_only" {
-		return errors.New("execution_mode must be analysis_only in the MVP")
+	if _, err := policy.EvaluateRequest(policy.RequestInput{
+		Purpose:       in.Purpose,
+		ExecutionMode: in.ExecutionMode,
+	}); err != nil {
+		return err
 	}
 	if len(in.ContextSources) > 100 {
 		return errors.New("context_sources must contain at most 100 items")
