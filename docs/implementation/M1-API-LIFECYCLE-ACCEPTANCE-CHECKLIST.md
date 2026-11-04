@@ -10,13 +10,13 @@
 |---|---|---|
 | Submission contract | OpenAPI request/response schema and handler behavior agree; validation errors use the documented Problem envelope | Pending review |
 | Retrieval contract | Ownership isolation is demonstrated; resource fields and terminal states match the specification | Pending review |
-| Cancellation contract | Legal/illegal transitions are explicit; repeated and concurrent cancellation behavior is covered by integration tests | Pending CI for PR #30 |
+| Cancellation contract | Legal/illegal transitions are explicit; repeated and concurrent cancellation behavior is covered by PostgreSQL integration tests | Evidence verified: PR #30 merged; PostgreSQL-backed Go checks passed (maintainer review pending) |
 | Idempotency | Key scope, replay behavior, and conflict behavior are specified and tested | Pending review |
 | Error contract | Stable error codes, HTTP status mapping, safe detail, and correlation ID are consistent | Pending review |
 | OpenAPI coverage | Automated checks cover operations and referenced schemas; limitations of fragment checks are documented | Partial; PR #28 merged |
 | Compatibility | No unapproved breaking API changes; schema changes reviewed against consumers | Pending review |
 | Security boundary | Unauthorized access and cross-client non-disclosure are tested; no side-effect execution is enabled | Pending review |
-| CI | Required checks including vet, tests, build, and dependency/security governance pass | Pending PR #30 CI and final review |
+| CI | Required checks including vet, tests, build, and dependency/security governance pass | PR #30 Go checks passed; full M1 gate and maintainer acceptance remain pending |
 
 ## Maintainer acceptance record
 
