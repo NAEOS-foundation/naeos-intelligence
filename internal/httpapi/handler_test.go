@@ -137,3 +137,55 @@ func TestInvalidInputProduces422(t *testing.T) {
 		t.Fatalf("status=%d, want 422", rec.Code)
 	}
 }
+
+
+func TestIdentityHeadersCannotOverrideValidatedPrincipal(t *testing.T) {
+	store := NewMemoryStore()
+	clientA := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes:   map[string]bool{"intelligence:read": true, "intelligence:write": true},
+	}}}
+	handlerA := NewHandler(store, clientA)
+
+	create := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"identity boundary","execution_mode":"analysis_only"}`))
+	create.Header.Set("Authorization", "Bearer validated-client-a")
+	create.Header.Set("X-Client-ID", "client-b")
+	create.Header.Set("X-Principal", "client-b")
+	created := httptest.NewRecorder()
+	handlerA.ServeHTTP(created, create)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("create status=%d, want 202: %s", created.Code, created.Body.String())
+	}
+	var accepted Accepted
+	if err := json.Unmarshal(created.Body.Bytes(), &accepted); err != nil {
+		t.Fatal(err)
+	}
+	if accepted.RequestID == "" {
+		t.Fatal("accepted response must contain request id")
+	}
+
+	// The spoofed headers must not change the validated client's ownership context.
+	getA := httptest.NewRequest(http.MethodGet, accepted.StatusURL, nil)
+	getA.Header.Set("Authorization", "Bearer validated-client-a")
+	getA.Header.Set("X-Client-ID", "client-b")
+	getA.Header.Set("X-Principal", "client-b")
+	recA := httptest.NewRecorder()
+	handlerA.ServeHTTP(recA, getA)
+	if recA.Code != http.StatusOK {
+		t.Fatalf("owner access status=%d, want 200: %s", recA.Code, recA.Body.String())
+	}
+
+	// A genuinely different validated client remains isolated from client-a's resource.
+	clientB := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-b",
+		Scopes:   map[string]bool{"intelligence:read": true},
+	}}}
+	handlerB := NewHandler(store, clientB)
+	getB := httptest.NewRequest(http.MethodGet, accepted.StatusURL, nil)
+	getB.Header.Set("Authorization", "Bearer validated-client-b")
+	recB := httptest.NewRecorder()
+	handlerB.ServeHTTP(recB, getB)
+	if recB.Code != http.StatusNotFound {
+		t.Fatalf("cross-client access status=%d, want 404: %s", recB.Code, recB.Body.String())
+	}
+}
