@@ -42,7 +42,7 @@ The documentation authority hierarchy is defined as follows:
 | L7 | Experiments and Evaluation Reports | Empirical findings and observations |
 | L8 | Informational Documentation | Guides, onboarding, and explanatory content |
 
-This hierarchy establishes precedence for normative requirements. ADRs record decisions and must be consistent with higher-level requirements unless an explicit amendment is approved.
+This hierarchy establishes precedence for normative requirements. ADRs record decisions and rationale; an ADR MUST remain consistent with higher-level requirements unless an explicit amendment is approved. An accepted ADR is authoritative for the specific decision it records, but it does not silently override an API contract or another normative specification. When a decision changes a higher-level requirement or contract, the affected document(s) MUST be amended in the same reviewed change. Where a conflict remains, the conflict-resolution process in Section 9 applies; implementation assumptions MUST NOT be used to choose a winner.
 
 ## 4. Normative Language
 
@@ -214,4 +214,4 @@ Documentation authority is a foundational engineering control for NAEOS Intellig
 All future architecture, implementation, and governance documentation SHOULD follow the hierarchy and change procedures defined in this document.
 ```
 
-**Dokumen berikutnya:** `PROJECT-VISION.md` — menjelaskan visi, misi, tujuan strategis, dan positioning NAEOS Intelligence dalam ekosistem NAEOS.
+Related normative documents: `docs/vision/PROJECT-VISION.md` and `docs/vision/PROJECT-SCOPE.md`.
