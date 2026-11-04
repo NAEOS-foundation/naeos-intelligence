@@ -35,7 +35,7 @@ When all three authentication environment variables are absent, the verifier rem
 - Identity-provider client registration/secret lifecycle, JWKS rotation operational validation, and production deployment hardening: Identity & Access implementation.
 - Real lifecycle worker/scheduler, transition history, cancellation propagation during running work: subsequent runtime phases.
 - Rate limiting, concurrency/queue controls, readiness probes, and automated OpenAPI contract conformance remain outstanding.
-- Approval endpoints are currently registered in the HTTP handler as prototype scaffolding, but are not included in the MVP OpenAPI contract. This is a scope inconsistency against `docs/vision/PROJECT-SCOPE.md` (which states the MVP has no operational approval workflow); these routes must be removed or separately accepted before the MVP can be considered scope-compliant.
+- Approval workflow internals remain as non-public prototype scaffolding, but approval HTTP routes are not registered or documented in the MVP API. The MVP does not expose an operational approval workflow, consistent with `docs/vision/PROJECT-SCOPE.md`.
 - No model/tool/policy integration or consequential side-effect execution is introduced through the documented MVP API.
 
 ## Acceptance checklist
