@@ -2,7 +2,7 @@
 
 **An independent intelligence layer for the NAEOS ecosystem.**
 
-> Status: Early Design · Draft  
+> Status: Implementation in Progress · MVP Foundation  
 > Version: 0.1.0
 
 NAEOS Intelligence is an independent, modular intelligence service designed to provide contextual reasoning, engineering analysis, workflow planning, and governed agent assistance across the NAEOS ecosystem.
@@ -236,11 +236,9 @@ Normative documents will define system requirements and architectural constraint
 
 ## Project Status
 
-NAEOS Intelligence is currently in the initial design and documentation phase.
+NAEOS Intelligence has moved beyond the initial documentation phase: a Go service foundation, read-only MVP API surface, request validation, and JWT/JWKS authentication scaffolding are present in the repository. Documentation and acceptance decisions remain in progress.
 
-The architecture, scope, technology choices, and integration contracts are proposed and require review before implementation.
-
-No production capabilities are implied by this README.
+Provider-specific IAM choices, production hardening, end-to-end acceptance, and early-access readiness are not implied by the existing implementation. The MVP remains read-only; governed execution is a future capability requiring separate maintainer and security acceptance.
 
 ## Contributing
 
