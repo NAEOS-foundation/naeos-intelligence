@@ -2,122 +2,97 @@
 
 **Repository:** `NAEOS-foundation/naeos-intelligence`  
 **Assessment date:** 2026-11-04  
-**Assessment baseline:** `main` at `a44e52e3c6956ead23568c5c28f34379337abf67`  
-**Status:** Assessment complete — maintainer review required  
-**Scope:** Read-only repository inspection; no application code changed.
+**Assessment baseline:** `main` at `b843009040bf1fe55fb4ffe73f77be8cb6e45082`  
+**Status:** Refreshed inventory — maintainer review required  
+**Scope:** Read-only Git tree and documentation inspection. No application code, tests, or deployment systems were executed as part of this refresh.
 
 ## 1. Executive summary
 
-The repository currently contains a substantial design/specification baseline and the staged Copilot implementation guidance. The inspected repository tree contains no Go application source, `go.mod`, automated test suite, or GitHub Actions workflow. Therefore the project remains documentation-first and has not yet established a reproducible software build baseline.
+The repository has progressed beyond a documentation-only baseline. The current `main` tree contains a Go module and service entrypoint, configuration, HTTP API handlers and JWT/JWKS verification scaffolding, in-memory and PostgreSQL persistence adapters, migration tooling, policy/approval prototype code, tests, a Makefile, and GitHub Actions CI.
 
-The recommended next engineering milestone is a minimal Phase 1 engineering baseline: settle the Go toolchain/module path and the smallest approved tooling choices, bootstrap the Go service skeleton, establish developer commands, and add CI for formatting, tests, and build. Do not implement agent, model, persistence, or privileged execution behavior during this milestone.
+The MVP surface remains read-only and must not be interpreted as approval for model-driven or consequential tool execution. Phase 3 implementation notes still identify deployment-level IAM validation, lifecycle-worker behavior, contract conformance, and related acceptance work as outstanding. Phase 4 notes describe PostgreSQL persistence implementation but also leave operational and retention decisions unresolved. Provider-specific IAM choices remain open in the Phase 5 worksheet.
 
-## 2. Repository inventory (observed)
+This refreshed assessment replaces the earlier inventory statements that no Go source, module, CI, or persistence baseline existed. Those statements were accurate only for the earlier assessment snapshot.
+
+## 2. Current repository inventory (observed in main tree)
 
 ### Present
-- Root project guidance: `README.md`, `DOCUMENTATION-AUTHORITY.md`.
-- Initial documentation blueprint: `docs/NAEOS-INTELLIGENCE-INITIAL-DOCUMENTATION-BLUEPRINT.md`.
-- Vision/scope documents under `docs/vision/`.
-- Architecture documents under `docs/architecture/`.
-- Security requirements and threat model under `docs/security/`.
-- Domain specifications under `docs/specifications/`.
-- OpenAPI contract: `api/openapi.yaml`.
-- Copilot governance instructions: `.github/copilot-instructions.md`.
-- Phase prompt files: `.github/prompts/phase-00` through `phase-13`.
-- Staged implementation roadmap: `docs/implementation/COPILOT-IMPLEMENTATION-ROADMAP.md`.
+- Go module: `go.mod`, `go.sum`; module path `github.com/NAEOS-foundation/naeos-intelligence`; Go baseline `1.26.10`.
+- Service entrypoint: `cmd/naeos-intelligence/main.go` and bootstrap test.
+- Separate migration command: `cmd/naeos-intelligence-migrate/main.go`.
+- Application packages: `internal/config`, `internal/governance`, `internal/httpapi`, `internal/model`, `internal/observability`, `internal/policy`, `internal/postgres`, `internal/runtime`.
+- PostgreSQL migration: `migrations/00001_request_persistence.sql`.
+- API contract: `api/openapi.yaml`.
+- Makefile and GitHub Actions workflow: `Makefile`, `.github/workflows/ci.yml`.
+- Unit tests and PostgreSQL integration test file(s); CI config provisions PostgreSQL 16 and enables integration tests.
+- Draft architecture, security, domain specifications, Phase 0–5 implementation notes, Copilot instructions, and staged prompts.
 
-### Not present in inspected tree
-- Go module file (`go.mod`) and Go source tree (`cmd/`, `internal/`).
-- Unit/integration/contract test files or test harness.
-- GitHub Actions workflow files under `.github/workflows/`.
-- Build/lint task runner configuration such as a Makefile.
-- Container build/deployment baseline.
-- Dedicated identity-and-access-control specification.
-- Dedicated ADR directory and accepted ADRs.
-- CONTRIBUTING.md, SECURITY.md, and LICENSE (README references contribution/security docs; license is noted as not yet defined).
+### Not established as complete / still requiring review
+- Maintainer acceptance/ratification of normative draft specifications.
+- Provider-specific IAM trust configuration, client/actor semantics, tenant isolation assumptions, revocation/key rotation and deployment-level validation.
+- Full asynchronous worker/scheduler lifecycle, transition race validation and cooperative cancellation.
+- Automated OpenAPI contract conformance and end-to-end auth contract coverage.
+- Production retention/deletion policy, operational migration and rollback procedures, observability/readiness controls, and early-access deployment validation.
+- Formal accepted ADRs for decisions that materially constrain architecture; proposed technology direction is not itself an accepted decision.
 
-These observations refer to the tree at the assessment baseline and should be refreshed before implementation if main changes.
+These are based on repository files and their stated status; this document does not claim runtime or production validation.
 
-## 3. Documentation maturity and authority
+## 3. Implementation snapshot
 
-The inspected README describes the project as **Early Design · Draft**. `DOCUMENTATION-AUTHORITY.md` says documents must not be considered authoritative merely because they exist; normative documentation is initially proposed until formally reviewed and accepted. The architecture and security documents inspected also declare Draft/Proposed statuses.
+| Area | Repository evidence | Assessment |
+|---|---|---|
+| Engineering baseline | `go.mod`, command entrypoint, Makefile, CI | Present; CI runs go vet, tests, and build. |
+| Configuration | `internal/config`, Phase 2 implementation note | Limited environment configuration implemented; secret/config expansion intentionally deferred. |
+| HTTP API | `internal/httpapi`, OpenAPI, Phase 3 implementation note | Read-only MVP request submission/retrieval/cancellation surface described; acceptance remains in progress. |
+| Authentication | Token verifier and JWKS verifier code/tests | JWT/JWKS scaffolding exists; deployment trust and operational readiness remain open. |
+| Persistence | `internal/postgres`, migration command and SQL migration | PostgreSQL adapter and persistence implemented; retention and operational rollout require decisions. |
+| Policy / approval | `internal/policy`, `internal/governance` | Prototype components exist; no public operational approval routes in read-only MVP. |
+| Agent/model/tool execution | runtime/model scaffolding and draft specifications | Do not infer production-ready or authorized consequential execution. |
 
-Implementation should consequently treat these documents as design input, not as a fully ratified architecture. Copilot must surface conflicts and open decisions rather than silently encode them.
-
-## 4. Gaps and risks
+## 4. Gaps, inconsistencies, and risks
 
 | ID | Finding | Risk / implication | Suggested action |
 |---|---|---|---|
-| P0-01 | No Go module/source baseline | Cannot build or test service yet | Phase 1 bootstrap |
-| P0-02 | No CI workflow observed | Changes lack automated baseline validation | Add GitHub Actions checks in Phase 1 |
-| P0-03 | Go version and module path not concretely established in inspected root baseline | Reproducibility and toolchain mismatch risk | Maintainer approves toolchain and module path before bootstrap |
-| P0-04 | Several technology choices are proposed (README/system architecture) | Copilot could introduce unnecessary or inconsistent dependencies | Keep initial dependency set minimal; record choices as ADRs if they materially constrain architecture |
-| P0-05 | Identity/access-control specification not present in tree | Authn/authz implementation requirements lack a dedicated detailed spec | Author/review spec before Phase 5; avoid insecure protected API exposure meanwhile |
-| P0-06 | Documentation filenames contained unusual suffixes (resolved in docs-only cleanup PR) | Links/tools and prompt references could fail or be confusing | Renamed to conventional `.md` paths; update internal references and verify links |
-| P0-07 | README's high-level phase sequence (Intelligence Core first, Governance/Evidence after) differs from the staged prompt sequence that prioritizes persistence/access/policy boundaries before agent execution | Roadmap sequencing inconsistency | Maintainer confirms safety-first sequencing; update roadmap/README with a documented rationale |
-| P0-08 | System Architecture lifecycle labels and Request Lifecycle specification should be cross-checked | Contract/state machine drift possible | Reconcile in documentation review before lifecycle implementation |
-| P0-09 | No accepted ADRs observed in tree | Major technical choices may be informal | Create ADRs only for decisions actually reviewed and accepted |
+| P0-01 | Current implementation has multiple phases represented in code, while phase notes contain differing acceptance/status language | Project status may be misread as accepted/production-ready | Refresh phase status notes against merged PRs, CI evidence, and explicit acceptance. |
+| P0-02 | IAM worksheet decisions remain open | Provider-specific implementation or production trust setup may encode assumptions | Resolve Phase 5 IAM decisions before provider-specific hardening; maintain fail-closed behavior. |
+| P0-03 | System Architecture state labels differ from Request Lifecycle states (e.g. `validated`, `contextualizing`, `planning`, `authorized` versus `accepted`, `queued`, `running`) | State machine and API/persistence contract drift | Reconcile lifecycle vocabulary in a deliberate docs/spec review before worker implementation. |
+| P0-04 | README's high-level roadmap puts Intelligence Core before Governance/Evidence, while staged prompts place persistence/IAM/policy gates before agent execution | Roadmap sequence can be interpreted inconsistently | Align README roadmap with the staged implementation plan; preserve security-first gates and clarify phase labels. |
+| P0-05 | Error-handling specification appears incomplete in its error-envelope details | Implementers may infer unspecified response fields | Complete the specification and reconcile it with actual HTTP error responses and API contract. |
+| P0-06 | Four documentation filenames contained malformed suffixes (resolved in docs-only cleanup PR #20) | Links/tools and prompt references could fail or be confusing | Normalized paths; separately verify internal links as needed. |
+| P0-07 | Production operational requirements are not all demonstrated by repository-level CI | Passing unit/CI checks alone do not establish early-access readiness | Plan deployment-level validation, secrets/trust configuration, migration operations, monitoring and E2E evidence. |
 
-## 5. Proposed Phase 1 scope
+## 5. Recommended next milestone
 
-### Include
-1. Agree and record Go toolchain version and module path.
-2. Create a minimal idiomatic Go entrypoint and structure with no premature domain modules.
-3. Add reproducible developer commands (Makefile or equivalent).
-4. Add baseline formatting, build, and test commands.
-5. Add GitHub Actions workflow for the approved Go version to run formatting checks, `go test ./...`, and `go build ./...`.
-6. Add a minimal smoke/unit test for the bootstrap.
-7. Update README with exact prerequisites and local commands.
-8. Add safe ignore files if needed.
+Prioritize a bounded documentation and acceptance-alignment milestone rather than adding agent execution capabilities:
 
-### Exclude
-- API handlers/business endpoints.
-- PostgreSQL, migrations, repositories.
-- Authentication provider integration.
-- Policy engine, agent planner/runtime, tools, approval execution.
-- Model provider integrations.
-- Production Docker deployment, secrets infrastructure, or NAEOS integration.
-- Renaming documentation files or broad documentation restructuring.
+1. Reconcile lifecycle state vocabulary across architecture, lifecycle specification, API contract, and persistence behavior.
+2. Refresh README and phase status summaries so roadmap and implementation evidence agree.
+3. Complete and reconcile the error-handling specification against the implemented API error envelope.
+4. Resolve the IAM worksheet decisions that are prerequisites for provider-specific and deployment-level work.
+5. After these review gates, define targeted contract, lifecycle, and deployment validation tasks.
 
-## 6. Decisions requiring maintainer review
+Do not add autonomous tool execution, unrestricted shell access, repository mutation, production deployment, or external side effects as part of this milestone.
 
-Before Phase 1 implementation, confirm:
-- Go version/toolchain baseline.
-- Canonical Go module path.
-- Whether a Makefile is desired or commands should be documented another way.
-- Linting tool choice (or keep initial CI to gofmt/build/test and add lint separately).
-- Safety-first phase order: establish auth/policy and governed execution gates before enabling agent tool execution.
-- Whether README roadmap is updated to align with staged prompt sequencing.
+## 6. Acceptance and governance
 
-If a decision is not yet approved, Copilot should pause and present a recommendation with trade-offs rather than assume.
+- Treat architecture/specification documents marked Draft or Proposed as design input, not automatically ratified requirements.
+- Keep read-only MVP boundaries in force.
+- Policy or authorization failures must fail closed; do not bypass security gates.
+- Any implementation phase should be limited to its scope, include actual test/check evidence, and report unresolved acceptance criteria explicitly.
+- Production deployment and consequential actions require separate explicit approval.
 
-## 7. Phase 1 acceptance criteria
+## 7. Traceability snapshot
 
-- [ ] Approved Go toolchain and module path recorded.
-- [ ] Minimal application builds reproducibly.
-- [ ] Developer setup and commands documented.
-- [ ] CI runs formatting validation, tests, and build on pull requests.
-- [ ] Bootstrap test exists and passes.
-- [ ] No business capabilities or privileged execution are introduced.
-- [ ] No secrets committed.
-- [ ] Diff contains only Phase 1 scope.
-- [ ] Exact commands and outcomes reported.
-
-## 8. Traceability snapshot
-
-| Design source | Assessment disposition | Implementation relevance |
-|---|---|---|
-| README / Project Vision / Scope | Draft / proposed context | Bound project purpose and initial exclusions |
-| System Architecture | Draft Proposed | Guidance; reconcile decisions before binding implementation |
-| Security Requirements / Threat Model | Draft Proposed | Security controls should be preserved; ratification/review remains needed |
-| API Contract / OpenAPI | Existing contract draft | Not implemented; avoid API work in Phase 1 |
-| Configuration, lifecycle, error handling, data model specs | Draft specifications | Future phases; resolve naming/contract consistency before implementation |
-| Copilot instructions and staged prompts | Implementation guidance | Execution guardrails; not substitute for accepted requirements |
-
-## 9. Recommendation
-
-**Proceed to Phase 1 only after maintainer confirms the open toolchain/module decisions.** Keep the first PR small and infrastructure-only. After its CI baseline is green and reviewed, implement configuration wiring and then API/lifecycle in separate bounded changes. Do not enable model-driven tool execution before authentication, policy enforcement, and approval boundaries are implemented and validated.
+| Source | Current disposition |
+|---|---|
+| README / Project Vision / Scope | Project purpose and MVP scope; some roadmap/status alignment work remains. |
+| System Architecture | Draft Proposed; state model requires reconciliation with lifecycle spec. |
+| Request Lifecycle | Draft Proposed; lifecycle worker and transition behavior not fully implemented/validated. |
+| API Contract / OpenAPI | Existing contract draft; conformance automation remains outstanding. |
+| Phase 1–4 implementation notes | Describe substantial implemented foundation; status/acceptance language should be reconciled with current main and CI. |
+| Phase 5 IAM worksheet and decision brief | Open decisions; provider-specific work is gated. |
+| Copilot instructions and staged prompts | Engineering guidance; do not substitute for accepted decisions or requirements. |
 
 ---
 
-This report records observations from the stated GitHub tree baseline. It does not claim local commands, tests, or CI were executed.
+This assessment records the current Git tree and documentation snapshot. It does not claim local command execution, complete E2E testing, production validation, or maintainer acceptance of draft specifications.
