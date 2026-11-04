@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -59,7 +60,7 @@ type CancellationAccepted struct {
 }
 
 type Store interface {
-	Create(clientID, idempotencyKey string, input RequestInput) (Request, bool, error)
-	Get(clientID, requestID string) (Request, error)
-	Cancel(clientID, requestID string) (Request, error)
+	Create(ctx context.Context, clientID, idempotencyKey string, input RequestInput, correlationID string) (Request, bool, error)
+	Get(ctx context.Context, clientID, requestID string) (Request, error)
+	Cancel(ctx context.Context, clientID, requestID, correlationID string) (Request, error)
 }

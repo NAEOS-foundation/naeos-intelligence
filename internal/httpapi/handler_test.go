@@ -111,14 +111,14 @@ func TestMalformedAndUnknownFieldsRejected(t *testing.T) {
 func TestOwnerIsolationAndCancellation(t *testing.T) {
 	store := NewMemoryStore()
 	input := RequestInput{Purpose: "p", ExecutionMode: "analysis_only"}
-	req, _, err := store.Create("client-a", "", input)
+	req, _, err := store.Create(context.Background(), "client-a", "", input, "test-correlation")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Get("client-b", req.RequestID); !errors.Is(err, ErrNotFound) {
+	if _, err = store.Get(context.Background(), "client-b", req.RequestID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-client Get err=%v", err)
 	}
-	cancelled, err := store.Cancel("client-a", req.RequestID)
+	cancelled, err := store.Cancel(context.Background(), "client-a", req.RequestID, "test-correlation")
 	if err != nil || cancelled.Status != StatusCancelled {
 		t.Fatalf("cancel=%+v err=%v", cancelled, err)
 	}

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -41,56 +42,45 @@ func generatedID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-func (s *MemoryStore) Create(clientID, key string, input RequestInput) (Request, bool, error) {
+func (s *MemoryStore) Create(ctx context.Context, clientID, key string, input RequestInput, correlationID string) (Request, bool, error) {
+	if err := ctx.Err(); err != nil { return Request{}, false, err }
 	digest, err := payloadDigest(input)
-	if err != nil {
-		return Request{}, false, err
-	}
+	if err != nil { return Request{}, false, err }
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	idemKey := clientID + "\x00" + key
 	if key != "" {
 		if previous, ok := s.idempotency[idemKey]; ok {
-			if previous.digest != digest {
-				return Request{}, false, ErrIdempotencyConflict
-			}
+			if previous.digest != digest { return Request{}, false, ErrIdempotencyConflict }
 			req, exists := s.requests[previous.requestID]
-			if !exists {
-				return Request{}, false, ErrNotFound
-			}
+			if !exists { return Request{}, false, ErrNotFound }
 			return req, true, nil
 		}
 	}
 	id, err := generatedID()
-	if err != nil {
-		return Request{}, false, err
-	}
+	if err != nil { return Request{}, false, err }
 	now := time.Now().UTC()
 	req := Request{RequestID: id, Status: StatusAccepted, Purpose: input.Purpose, ExecutionMode: input.ExecutionMode, CreatedAt: now, UpdatedAt: now, ClientID: clientID, Input: input}
 	s.requests[req.RequestID] = req
-	if key != "" {
-		s.idempotency[idemKey] = idempotencyRecord{digest: digest, requestID: req.RequestID}
-	}
+	if key != "" { s.idempotency[idemKey] = idempotencyRecord{digest: digest, requestID: req.RequestID} }
 	return req, false, nil
 }
 
-func (s *MemoryStore) Get(clientID, requestID string) (Request, error) {
+func (s *MemoryStore) Get(ctx context.Context, clientID, requestID string) (Request, error) {
+	if err := ctx.Err(); err != nil { return Request{}, err }
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	req, ok := s.requests[requestID]
-	if !ok || req.ClientID != clientID {
-		return Request{}, ErrNotFound
-	}
+	if !ok || req.ClientID != clientID { return Request{}, ErrNotFound }
 	return req, nil
 }
 
-func (s *MemoryStore) Cancel(clientID, requestID string) (Request, error) {
+func (s *MemoryStore) Cancel(ctx context.Context, clientID, requestID, correlationID string) (Request, error) {
+	if err := ctx.Err(); err != nil { return Request{}, err }
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	req, ok := s.requests[requestID]
-	if !ok || req.ClientID != clientID {
-		return Request{}, ErrNotFound
-	}
+	if !ok || req.ClientID != clientID { return Request{}, ErrNotFound }
 	switch req.Status {
 	case StatusAccepted, StatusQueued, StatusRequiresApproval:
 		req.Status = StatusCancelled
