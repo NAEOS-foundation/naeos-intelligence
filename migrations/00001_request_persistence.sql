@@ -44,11 +44,9 @@ CREATE INDEX request_transitions_request_created_idx
 
 -- +goose StatementBegin
 CREATE FUNCTION prevent_request_transition_mutation() RETURNS trigger
-LANGUAGE plpgsql AS $
-BEGIN
-    RAISE EXCEPTION 'request transition history is append-only';
-END;
-$;
+LANGUAGE plpgsql AS 'BEGIN
+    RAISE EXCEPTION ''request transition history is append-only'';
+END;';
 -- +goose StatementEnd
 
 CREATE TRIGGER request_transitions_no_update
