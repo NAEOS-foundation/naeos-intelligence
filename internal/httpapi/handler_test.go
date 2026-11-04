@@ -360,3 +360,87 @@ func TestMetadataPropertyLimitEnforced(t *testing.T) {
 		t.Fatalf("code=%q want UNPROCESSABLE_REQUEST", p.Code)
 	}
 }
+
+
+func TestHTTPClientOwnershipIsolationAndIdempotencyScope(t *testing.T) {
+	store := NewMemoryStore()
+	authFor := func(clientID string) Authenticator {
+		return Authenticator{Verifier: fakeVerifier{principal: Principal{
+			ClientID: clientID,
+			Scopes: map[string]bool{"intelligence:read": true, "intelligence:write": true},
+		}}}
+	}
+	handlerA := NewHandler(store, authFor("client-a"))
+	handlerB := NewHandler(store, authFor("client-b"))
+	const body = "{\"purpose\":\"ownership contract\",\"execution_mode\":\"analysis_only\"}"
+
+	submit := func(h http.Handler, key string) Accepted {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer fake")
+		r.Header.Set("Idempotency-Key", key)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("submit status=%d body=%s", rec.Code, rec.Body.String())
+		}
+		var accepted Accepted
+		if err := json.Unmarshal(rec.Body.Bytes(), &accepted); err != nil {
+			t.Fatal(err)
+		}
+		return accepted
+	}
+
+	ownedByA := submit(handlerA, "tenant-scoped-key")
+	// The same idempotency key in a different client scope must create a distinct request.
+	ownedByB := submit(handlerB, "tenant-scoped-key")
+	if ownedByA.RequestID == ownedByB.RequestID {
+		t.Fatal("idempotency key must be scoped to authenticated client")
+	}
+
+	getForeign := httptest.NewRequest(http.MethodGet, ownedByA.StatusURL, nil)
+	getForeign.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	handlerB.ServeHTTP(rec, getForeign)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("foreign GET status=%d want=404 body=%s", rec.Code, rec.Body.String())
+	}
+	var p problem
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Code != "RESOURCE_NOT_FOUND" || p.Detail != "Request was not found" {
+		t.Fatalf("foreign access must be non-disclosing: %+v", p)
+	}
+}
+
+func TestCancelCompletedRequestReturnsContractConflict(t *testing.T) {
+	store := NewMemoryStore()
+	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "terminal state", ExecutionMode: "analysis_only"}, "corr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	req.Status = StatusCompleted
+	store.requests[req.RequestID] = req
+	store.mu.Unlock()
+
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes: map[string]bool{"intelligence:read": true, "intelligence:write": true},
+	}}}
+	h := NewHandler(store, auth)
+	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/cancel", req.RequestID), nil)
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("cancel completed request status=%d want=409 body=%s", rec.Code, rec.Body.String())
+	}
+	var p problem
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Code != "CONFLICT" || p.Status != http.StatusConflict {
+		t.Fatalf("conflict response violates public contract: %+v", p)
+	}
+}
