@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,46 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	cancelled,err:=store.Cancel(ctx,clientID,first.RequestID,"correlation-cancel")
 	if err!=nil || cancelled.Status!=httpapi.StatusCancelled{t.Fatalf("cancelled=%+v err=%v",cancelled,err)}
 	if _,err=store.Cancel(ctx,clientID,first.RequestID,"correlation-cancel");err!=nil{t.Fatalf("idempotent cancel: %v",err)}
+
+	// Concurrent cancellation requests must serialize against the row lock and
+	// append exactly one lifecycle transition while remaining idempotent.
+	raceRequest, _, err := store.Create(ctx, clientID+"-race", "", input, "correlation-race")
+	if err != nil {
+		t.Fatalf("create cancellation-race request: %v", err)
+	}
+	const cancelCallCount = 12
+	var cancelWG sync.WaitGroup
+	cancelErrors := make(chan error, cancelCallCount)
+	for i := 0; i < cancelCallCount; i++ {
+		cancelWG.Add(1)
+		go func() {
+			defer cancelWG.Done()
+			result, cancelErr := store.Cancel(ctx, clientID+"-race", raceRequest.RequestID, "correlation-race-cancel")
+			if cancelErr != nil {
+				cancelErrors <- cancelErr
+				return
+			}
+			if result.Status != httpapi.StatusCancelled {
+				cancelErrors <- errors.New("concurrent cancel returned non-cancelled status")
+			}
+		}()
+	}
+	cancelWG.Wait()
+	close(cancelErrors)
+	for cancelErr := range cancelErrors {
+		t.Errorf("concurrent cancellation: %v", cancelErr)
+	}
+	var transitionCount int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM request_transitions WHERE request_id=$1::uuid AND event_type='request.cancelled'", raceRequest.RequestID).Scan(&transitionCount); err != nil {
+		t.Fatalf("count cancellation transitions: %v", err)
+	}
+	if transitionCount != 1 {
+		t.Fatalf("concurrent cancel created %d transitions, want exactly 1", transitionCount)
+	}
+	finalRequest, err := store.Get(ctx, clientID+"-race", raceRequest.RequestID)
+	if err != nil || finalRequest.Status != httpapi.StatusCancelled {
+		t.Fatalf("final race request status=%s err=%v", finalRequest.Status, err)
+	}
 
 	attempt,err:=store.CreateAttempt(ctx,first.RequestID);if err!=nil{t.Fatalf("create attempt: %v",err)}
 	if attempt.Status!="pending" || attempt.AttemptNumber!=1{t.Fatalf("unexpected attempt: %+v",attempt)}
