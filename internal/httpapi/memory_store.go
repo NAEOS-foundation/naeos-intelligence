@@ -134,14 +134,22 @@ func (s *MemoryStore) ApprovalDecision(requestID string) (gov.ApprovalDecision, 
 	return s.approval.Get(requestID)
 }
 
-func (s *MemoryStore) RecordApprovalDecision(requestID, decision, approvedBy, reason string) (gov.ApprovalDecision, error) {
+func (s *MemoryStore) RecordApprovalDecision(ctx context.Context, clientID, requestID, decision, approvedBy, reason string) (gov.ApprovalDecision, error) {
 	if s == nil {
 		return gov.ApprovalDecision{}, ErrNotFound
 	}
+	if err := ctx.Err(); err != nil {
+		return gov.ApprovalDecision{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return gov.ApprovalDecision{}, err
+	}
+	// Ownership validation and approval mutation share the store lock so a
+	// foreign tenant cannot race the check and change approval state.
 	req, ok := s.requests[requestID]
-	if !ok {
+	if !ok || req.ClientID != clientID {
 		return gov.ApprovalDecision{}, ErrNotFound
 	}
 	if s.approval == nil {
