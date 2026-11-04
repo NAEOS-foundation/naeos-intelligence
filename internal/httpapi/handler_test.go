@@ -263,31 +263,31 @@ func TestProblemResponsesMatchPublicContract(t *testing.T) {
 		{
 			name: "missing bearer",
 			handler: testHandler(),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":"x","execution_mode":"analysis_only"}\`)),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
 			wantStatus: http.StatusUnauthorized, wantCode: "UNAUTHENTICATED",
 		},
 		{
 			name: "insufficient scope",
 			handler: NewHandler(NewMemoryStore(), authReadOnly),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":"x","execution_mode":"analysis_only"}\`)),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
 			wantStatus: http.StatusForbidden, wantCode: "FORBIDDEN",
 		},
 		{
 			name: "invalid input",
 			handler: testHandler(),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":" ","execution_mode":"analysis_only"}\`)),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":" ","execution_mode":"analysis_only"}`)),
 			wantStatus: http.StatusUnprocessableEntity, wantCode: "UNPROCESSABLE_REQUEST",
 		},
 		{
 			name: "malformed body",
 			handler: testHandler(),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":\`)),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":`)),
 			wantStatus: http.StatusBadRequest, wantCode: "INVALID_REQUEST",
 		},
 		{
 			name: "missing verifier",
 			handler: NewHandler(NewMemoryStore(), Authenticator{}),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(\`{"purpose":"x","execution_mode":"analysis_only"}\`)),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
 			wantStatus: http.StatusServiceUnavailable, wantCode: "SERVICE_UNAVAILABLE",
 		},
 	}
