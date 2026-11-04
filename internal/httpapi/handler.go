@@ -69,7 +69,7 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusBadRequest, "INVALID_IDEMPOTENCY_KEY", "Idempotency-Key must not exceed 255 characters")
 		return
 	}
-	req, replay, err := h.store.Create(principal.ClientID, key, input)
+	req, replay, err := h.store.Create(r.Context(), principal.ClientID, key, input, requestIDFrom(r))
 	if errors.Is(err, ErrIdempotencyConflict) {
 		writeProblem(w, r, http.StatusConflict, "IDEMPOTENCY_CONFLICT", "Idempotency key was used with a different request payload")
 		return
@@ -92,7 +92,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
 		return
 	}
-	req, err := h.store.Get(p.ClientID, r.PathValue("request_id"))
+	req, err := h.store.Get(r.Context(), p.ClientID, r.PathValue("request_id"))
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -110,7 +110,7 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
 		return
 	}
-	req, err := h.store.Cancel(p.ClientID, r.PathValue("request_id"))
+	req, err := h.store.Cancel(r.Context(), p.ClientID, r.PathValue("request_id"), requestIDFrom(r))
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return

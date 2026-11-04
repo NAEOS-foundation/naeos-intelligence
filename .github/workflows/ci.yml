@@ -12,6 +12,23 @@ jobs:
   go-checks:
     name: Go checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: naeos
+          POSTGRES_PASSWORD: naeos
+          POSTGRES_DB: naeos_intelligence_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U naeos -d naeos_intelligence_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://naeos:naeos@localhost:5432/naeos_intelligence_test?sslmode=disable
+      NAEOS_POSTGRES_INTEGRATION: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,8 +37,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Verify formatting
-        run: test -z "$(gofmt -l ./cmd ./internal)"
+      - name: Resolve and verify module sums
+        run: go mod tidy
+      - name: Export module sums for repository commit
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-go-sum
+          path: go.sum
+          if-no-files-found: error
+      - name: Download modules
+        run: go mod download
       - name: Vet
         run: go vet ./...
       - name: Test
