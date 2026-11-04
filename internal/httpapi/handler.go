@@ -130,8 +130,10 @@ func validateInput(in RequestInput) error {
 	if strings.TrimSpace(in.Purpose) == "" || len(in.Purpose) > 2000 {
 		return errors.New("purpose must contain 1 to 2000 characters")
 	}
-	if in.ExecutionMode != "analysis_only" && in.ExecutionMode != "governed" {
-		return errors.New("execution_mode must be analysis_only or governed")
+	// The MVP is strictly analysis-only. Governed execution requires separately
+	// accepted authorization, approval, audit, and runtime enforcement contracts.
+	if in.ExecutionMode != "analysis_only" {
+		return errors.New("execution_mode must be analysis_only in the MVP")
 	}
 	if len(in.ContextSources) > 100 {
 		return errors.New("context_sources must contain at most 100 items")
