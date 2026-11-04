@@ -122,7 +122,7 @@ func TestOwnerIsolationAndCancellation(t *testing.T) {
 	if err != nil || cancelled.Status != StatusCancelled {
 		t.Fatalf("cancel=%+v err=%v", cancelled, err)
 	}
-	if _, err = store.Cancel("client-a", req.RequestID); err != nil {
+	if _, err = store.Cancel(context.Background(), "client-a", req.RequestID, "test-correlation"); err != nil {
 		t.Fatalf("repeat cancellation should be idempotent: %v", err)
 	}
 }
