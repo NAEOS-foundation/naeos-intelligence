@@ -184,7 +184,16 @@ Any addition to MVP scope MUST:
 
 Scope expansion MUST NOT weaken existing security boundaries.
 
-## 10. Later-Phase Scope Candidates\n\nThe following capability progression is a planning boundary, not an approved delivery commitment:\n\n- **MVP (read-only):** repository/issue/PR/CI intelligence, analysis, structured planning, recommendations, and traceable evidence.\n- **Later phase — read-only tool breadth:** additional authorized retrieval integrations and contextual sources.\n- **Later phase — approval-gated writes:** proposals and limited write actions only after authorization, approval-state, audit/evidence, and runtime enforcement requirements are accepted and tested.\n- **Later phase — broader controlled execution:** further automation only after a separate security and architecture review.\n\n## 10.1 Future Scope Candidates
+## 10. Later-Phase Scope Candidates
+
+The following capability progression is a planning boundary, not an approved delivery commitment:
+
+- **MVP (read-only):** repository/issue/PR/CI intelligence, analysis, structured planning, recommendations, and traceable evidence.
+- **Later phase — read-only tool breadth:** additional authorized retrieval integrations and contextual sources.
+- **Later phase — approval-gated writes:** proposals and limited write actions only after authorization, approval-state, audit/evidence, and runtime enforcement requirements are accepted and tested.
+- **Later phase — broader controlled execution:** further automation only after a separate security and architecture review.
+
+## 10.1 Future Scope Candidates
 
 Potential future capabilities include:
 
