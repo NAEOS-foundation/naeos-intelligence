@@ -116,3 +116,48 @@ func signedTestJWT(t *testing.T, key *rsa.PrivateKey, kid string, claims any) st
 	}
 	return fmt.Sprintf("%s.%s", signingInput, base64.RawURLEncoding.EncodeToString(signature))
 }
+
+
+func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := &JWKSVerifier{
+		issuer:   "https://issuer.test",
+		audience: "naeos-api",
+		keys:     map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		fetchedAt: time.Now(),
+	}
+	base := map[string]any{
+		"iss": verifier.issuer,
+		"aud": verifier.audience,
+		"sub": "svc-test",
+		"exp": time.Now().Unix() + 300,
+	}
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "missing expiry", mutate: func(c map[string]any) { delete(c, "exp") }},
+		{name: "missing issuer", mutate: func(c map[string]any) { delete(c, "iss") }},
+		{name: "wrong issuer", mutate: func(c map[string]any) { c["iss"] = "https://attacker.test" }},
+		{name: "wrong audience", mutate: func(c map[string]any) { c["aud"] = []string{"other-api"} }},
+		{name: "missing identity", mutate: func(c map[string]any) { delete(c, "sub") }},
+		{name: "blank identity", mutate: func(c map[string]any) { c["sub"] = "  " }},
+		{name: "malformed not-before", mutate: func(c map[string]any) { c["nbf"] = "not-a-timestamp" }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims := make(map[string]any, len(base))
+			for key, value := range base {
+				claims[key] = value
+			}
+			tt.mutate(claims)
+			token := signedTestJWT(t, privateKey, "kid", claims)
+			if _, err := verifier.Verify(context.Background(), token); err == nil {
+				t.Fatal("JWT with invalid required claims must be rejected")
+			}
+		})
+	}
+}
