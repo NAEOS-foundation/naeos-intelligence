@@ -136,5 +136,37 @@ This structure is illustrative and MUST be reconciled with the implementation.
 
 ### 5.1 Required Properties
 
-Normalized errors MUST contain:
+Normalized errors MUST contain the following fields at internal component boundaries:
+
+| Field | Requirement | Semantics |
+|---|---|---|
+| `Code` | MUST | Stable machine-readable code; not derived from free-form text |
+| `Category` | MUST | One of the categories in Section 4 |
+| `Message` | MUST | Safe diagnostic message; must not contain credentials, tokens, or sensitive provider payloads |
+| `Retryable` | MUST | Boolean eligibility hint; recovery still requires a bounded retry budget and policy checks |
+| `RequestID` | MUST when request-scoped | Correlation to the originating request |
+| `ExecutionID` | SHOULD when execution-scoped | Correlation to execution, when one exists |
+| `Cause` | MAY internally | Wrapped cause for diagnostics; never serialized to public API responses |
+
+### 5.2 Public API Error Mapping
+
+The public API uses the Problem Details-like envelope defined in `docs/specifications/API-CONTRACT.md` and `api/openapi.yaml`. The public response fields are `type`, `title`, `status`, `code`, `detail`, and `request_id`. Internal `Category`, `Retryable`, `ExecutionID`, and `Cause` are not required public fields and MUST NOT be exposed unless a separately reviewed contract explicitly allows it.
+
+The current API/OpenAPI code map includes:
+
+| HTTP status | Public code | Category mapping (typical) | Retry guidance |
+|---|---|---|---|
+| 400 | `INVALID_REQUEST` | validation | No |
+| 401 | `UNAUTHENTICATED` | authentication | No; caller must supply valid credentials |
+| 403 | `FORBIDDEN` | authorization | No |
+| 404 | `RESOURCE_NOT_FOUND` | authorization/resource lookup | No; must not disclose inaccessible resource existence |
+| 409 | `CONFLICT` | validation/lifecycle conflict | No automatic retry without state or payload change |
+| 413 | `PAYLOAD_TOO_LARGE` | resource_limit | No |
+| 422 | `UNPROCESSABLE_REQUEST` | validation/unsupported request | No |
+| 429 | `RATE_LIMITED` | resource_limit | Client may retry only after server guidance |
+| 500 | `INTERNAL_ERROR` | internal | Retry only if operation semantics and bounded policy permit |
+| 503 | `SERVICE_UNAVAILABLE` | dependency/database/unavailable auth verifier | Retry only with bounded policy; authentication fail-closed behavior remains mandatory |
+
+This table documents the shared intended error vocabulary. Endpoint-specific responses must be declared in OpenAPI and verified by contract tests; the current OpenAPI file does not yet declare every listed status/code pair on every operation.
+
 

@@ -3,7 +3,7 @@
 **Project:** NAEOS Intelligence  
 **Document ID:** NAEOS-INT-SPEC-003  
 **Location:** `docs/specifications/REQUEST-LIFECYCLE.md`  
-**Status:** Draft Proposed  
+**Status:** Draft Proposed (target lifecycle; MVP implementation subset is documented in Phase 3)  
 **Version:** 0.1.0  
 **Last Updated:** 2026-11-04
 
@@ -45,7 +45,11 @@ The request lifecycle MUST follow these principles:
 
 ## 3. Request State Model
 
-The initial lifecycle uses the following states:
+The state vocabulary below describes the **proposed target lifecycle**. It is not a statement that every state or transition is implemented or enabled in the read-only MVP.
+
+**MVP implementation boundary (Phase 3):** submission is accepted into `accepted`; the current service does not schedule or run intelligence processing. The public API therefore must not imply `queued`, `running`, or `completed` as a consequence of submission. Cancellation is currently limited to requests not entered into execution; running-work cancellation and propagation are deferred. `requires_approval` and approval transitions are reserved for a separately accepted governed workflow and are not enabled in the MVP.
+
+The initial target lifecycle uses the following states:
 
 | State | Category | Description |
 |---|---|---|
@@ -101,7 +105,9 @@ The following transitions are permitted:
 | `requires_approval` | Approval expires | `failed` |
 | `requires_approval` | Cancellation accepted | `cancelled` |
 
-The transition table is normative for the initial MVP.
+This transition table is **proposed for the target lifecycle**, not normative for the currently implemented read-only MVP. Only behavior explicitly described in the Phase 3 implementation record and API/OpenAPI contract is considered implemented. In particular, the approval transitions are deferred and running cancellation is not implemented.
+
+Before this target transition table becomes normative, its states, transition guards, and terminal-state behavior must be accepted and contract-tested against the implementation.
 
 Any additional transition requires an architecture review and an update to this document.
 

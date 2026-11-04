@@ -62,13 +62,9 @@ The deployment may expose a different external prefix, but the logical API versi
 
 All intelligence operations must require authentication.
 
-The initial authentication mechanism is an architectural decision to be finalized. Candidate mechanisms include:
+The current HTTP API contains a `TokenVerifier` boundary and a JWKS-backed JWT verifier scaffold configured by issuer, audience, and JWKS URL. Protected routes fail closed when the verifier is absent or configuration is invalid. This implementation scaffold does not by itself constitute an accepted deployment IAM decision.
 
-- OAuth 2.0 / OpenID Connect.
-- Service-to-service authentication.
-- Short-lived signed access tokens.
-
-The final implementation must define the supported authentication mechanism and token validation requirements.
+Provider/client registration, tenant and actor claim semantics, trust ownership, key rotation and revocation operations, and production IAM acceptance remain subject to the Phase 5 IAM decision worksheet and deployment validation. The supported authentication contract and token validation requirements must be formally accepted before Early Access deployment.
 
 ### Authorization Requirements
 
