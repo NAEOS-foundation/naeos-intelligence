@@ -154,6 +154,9 @@ func validateInput(in RequestInput) error {
 			return errors.New("desired_outputs contain an invalid item")
 		}
 	}
+	if len(in.Metadata) > 50 {
+		return errors.New("metadata must contain at most 50 items")
+	}
 	for key, value := range in.Metadata {
 		if strings.TrimSpace(key) == "" || len(key) > 128 || len(value) > 256 {
 			return errors.New("metadata contains an invalid item")
