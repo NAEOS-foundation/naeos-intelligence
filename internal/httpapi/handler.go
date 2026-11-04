@@ -40,7 +40,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	principal, ok := principalFrom(r.Context())
 	if !ok {
-		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
+		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
 		return
 	}
 	var input RequestInput
@@ -55,7 +55,7 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateInput(input); err != nil {
-		writeProblem(w, r, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		writeProblem(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_REQUEST", err.Error())
 		return
 	}
 	input.Purpose = strings.TrimSpace(input.Purpose)
@@ -68,12 +68,12 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 	}
 	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if len(key) > 255 {
-		writeProblem(w, r, http.StatusBadRequest, "INVALID_IDEMPOTENCY_KEY", "Idempotency-Key must not exceed 255 characters")
+		writeProblem(w, r, http.StatusBadRequest, "INVALID_REQUEST", "Idempotency-Key must not exceed 255 characters")
 		return
 	}
 	req, replay, err := h.store.Create(r.Context(), principal.ClientID, key, input, requestIDFrom(r))
 	if errors.Is(err, ErrIdempotencyConflict) {
-		writeProblem(w, r, http.StatusConflict, "IDEMPOTENCY_CONFLICT", "Idempotency key was used with a different request payload")
+		writeProblem(w, r, http.StatusConflict, "CONFLICT", "Idempotency key was used with a different request payload")
 		return
 	}
 	if err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	p, ok := principalFrom(r.Context())
 	if !ok {
-		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
+		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
 		return
 	}
 	req, err := h.store.Get(r.Context(), p.ClientID, r.PathValue("request_id"))
@@ -109,7 +109,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 	p, ok := principalFrom(r.Context())
 	if !ok {
-		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
+		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
 		return
 	}
 	req, err := h.store.Cancel(r.Context(), p.ClientID, r.PathValue("request_id"), requestIDFrom(r))
@@ -118,7 +118,7 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, ErrConflict) {
-		writeProblem(w, r, http.StatusConflict, "REQUEST_STATE_CONFLICT", "Request cannot be cancelled in its current state")
+		writeProblem(w, r, http.StatusConflict, "CONFLICT", "Request cannot be cancelled in its current state")
 		return
 	}
 	if err != nil {

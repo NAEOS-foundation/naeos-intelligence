@@ -244,3 +244,78 @@ func TestIdentityHeadersCannotOverrideValidatedPrincipal(t *testing.T) {
 		t.Fatalf("cross-client access status=%d, want 404: %s", recB.Code, recB.Body.String())
 	}
 }
+
+ 
+// TestProblemResponsesMatchPublicContract verifies the stable public error envelope,
+// status-to-code mapping, media type, and request correlation behavior.
+func TestProblemResponsesMatchPublicContract(t *testing.T) {
+	authReadOnly := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes: map[string]bool{"intelligence:read": true},
+	}}}
+	cases := []struct {
+		name string
+		handler http.Handler
+		request *http.Request
+		wantStatus int
+		wantCode string
+	}{
+		{
+			name: "missing bearer",
+			handler: testHandler(),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
+			wantStatus: http.StatusUnauthorized, wantCode: "UNAUTHENTICATED",
+		},
+		{
+			name: "insufficient scope",
+			handler: NewHandler(NewMemoryStore(), authReadOnly),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
+			wantStatus: http.StatusForbidden, wantCode: "FORBIDDEN",
+		},
+		{
+			name: "invalid input",
+			handler: testHandler(),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":" ","execution_mode":"analysis_only"}`)),
+			wantStatus: http.StatusUnprocessableEntity, wantCode: "UNPROCESSABLE_REQUEST",
+		},
+		{
+			name: "malformed body",
+			handler: testHandler(),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":`)),
+			wantStatus: http.StatusBadRequest, wantCode: "INVALID_REQUEST",
+		},
+		{
+			name: "missing verifier",
+			handler: NewHandler(NewMemoryStore(), Authenticator{}),
+			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
+			wantStatus: http.StatusServiceUnavailable, wantCode: "SERVICE_UNAVAILABLE",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			const correlationID = "contract-test-req-01"
+			tc.request.Header.Set("X-Request-ID", correlationID)
+			if tc.name != "missing bearer" && tc.name != "missing verifier" {
+				tc.request.Header.Set("Authorization", "Bearer fake")
+			}
+			rec := httptest.NewRecorder()
+			tc.handler.ServeHTTP(rec, tc.request)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status=%d want=%d body=%s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if got := rec.Header().Get("Content-Type"); got != "application/problem+json" {
+				t.Fatalf("Content-Type=%q want application/problem+json", got)
+			}
+			if got := rec.Header().Get("X-Request-ID"); got != correlationID {
+				t.Fatalf("X-Request-ID=%q want %q", got, correlationID)
+			}
+			var body problem
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode problem: %v", err)
+			}
+			if body.Status != tc.wantStatus || body.Code != tc.wantCode || body.RequestID != correlationID || body.Detail == "" || body.Title == "" || body.Type == "" {
+				t.Fatalf("problem envelope does not satisfy contract: %+v", body)
+			}
+		})
+	}
+}

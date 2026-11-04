@@ -128,7 +128,7 @@ components:
         X-Request-ID:
           $ref: "#/components/headers/RequestCorrelation"
       content:
-        application/json:
+        application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
     RequestInput:
