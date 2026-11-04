@@ -97,6 +97,18 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authentication is required")
 		return
 	}
+	requestID := r.PathValue("request_id")
+	// Verify tenant ownership before touching approval state. Get intentionally
+	// returns the same not-found result for missing and foreign requests.
+	req, err := h.store.Get(r.Context(), p.ClientID, requestID)
+	if errors.Is(err, ErrNotFound) {
+		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
+		return
+	}
+	if err != nil {
+		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Request could not be retrieved")
+		return
+	}
 	var payload struct {
 		Decision   string `json:"decision"`
 		ApprovedBy string `json:"approved_by,omitempty"`
@@ -107,7 +119,6 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	payload.Decision = strings.TrimSpace(payload.Decision)
-	payload.ApprovedBy = strings.TrimSpace(payload.ApprovedBy)
 	payload.Reason = strings.TrimSpace(payload.Reason)
 	if payload.Decision == "" {
 		writeProblem(w, r, http.StatusBadRequest, "INVALID_DECISION", "decision is required")
@@ -119,6 +130,13 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusBadRequest, "INVALID_DECISION", "decision must be approved or denied")
 		return
 	}
+	// approved_by in the JSON body is retained for request compatibility, but
+	// never trusted. Persist only the identity supplied by the authenticator.
+	approvedBy := strings.TrimSpace(p.ClientID)
+	if approvedBy == "" {
+		writeProblem(w, r, http.StatusUnauthorized, "INVALID_PRINCIPAL", "Authenticated principal is required to record an approval decision")
+		return
+	}
 	approver, ok := h.store.(interface {
 		RecordApprovalDecision(string, string, string, string) (gov.ApprovalDecision, error)
 	})
@@ -126,7 +144,7 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusServiceUnavailable, "APPROVAL_NOT_CONFIGURED", "Approval workflow is not configured")
 		return
 	}
-	decision, err := approver.RecordApprovalDecision(r.PathValue("request_id"), strings.ToLower(payload.Decision), payload.ApprovedBy, payload.Reason)
+	decision, err := approver.RecordApprovalDecision(requestID, strings.ToLower(payload.Decision), approvedBy, payload.Reason)
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -135,16 +153,13 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Approval decision could not be recorded")
 		return
 	}
-	if p.ClientID != "" && payload.ApprovedBy == "" {
-		payload.ApprovedBy = p.ClientID
-	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"request_id":   r.PathValue("request_id"),
-		"decision":     decision.Decision,
-		"approved_by":  decision.ApprovedBy,
-		"reason":       decision.Reason,
-		"status":       StatusRequiresApproval,
-		"approval_required": decision.ApprovalRequired,
+		"request_id":         requestID,
+		"decision":           decision.Decision,
+		"approved_by":        decision.ApprovedBy,
+		"reason":             decision.Reason,
+		"status":             req.Status,
+		"approval_required":  decision.ApprovalRequired,
 	})
 }
 
