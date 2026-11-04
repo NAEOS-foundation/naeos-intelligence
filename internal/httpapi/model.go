@@ -36,21 +36,23 @@ type RequestInput struct {
 }
 
 type Request struct {
-	RequestID     string       `json:"request_id"`
-	Status        Status       `json:"status"`
-	Purpose       string       `json:"purpose"`
-	ExecutionMode string       `json:"execution_mode"`
-	CreatedAt     time.Time    `json:"created_at"`
-	UpdatedAt     time.Time    `json:"updated_at"`
-	ClientID      string       `json:"-"`
-	Input         RequestInput `json:"-"`
+	RequestID        string       `json:"request_id"`
+	Status           Status       `json:"status"`
+	ApprovalRequired bool         `json:"approval_required"`
+	Purpose          string       `json:"purpose"`
+	ExecutionMode    string       `json:"execution_mode"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+	ClientID         string       `json:"-"`
+	Input            RequestInput `json:"-"`
 }
 
 type Accepted struct {
-	RequestID string    `json:"request_id"`
-	Status    Status    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	StatusURL string    `json:"status_url"`
+	RequestID        string    `json:"request_id"`
+	Status           Status    `json:"status"`
+	ApprovalRequired bool      `json:"approval_required"`
+	CreatedAt        time.Time `json:"created_at"`
+	StatusURL        string    `json:"status_url"`
 }
 
 type CancellationAccepted struct {

@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	gov "github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 )
 
 type fakeVerifier struct {
@@ -68,6 +70,99 @@ func TestProtectedRouteFailsClosedWithoutVerifier(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`)))
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status=%d, want 503", rec.Code)
+	}
+}
+
+func TestMemoryStoreMarksGovernedRequestsRequiresApproval(t *testing.T) {
+	store := NewMemoryStore()
+	req, replay, err := store.Create(context.Background(), "client-1", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	if replay {
+		t.Fatal("governed request should not be replayed")
+	}
+	if req.Status != StatusRequiresApproval {
+		t.Fatalf("status=%q, want requires_approval", req.Status)
+	}
+	if !req.ApprovalRequired {
+		t.Fatal("governed request should expose approval_required=true")
+	}
+}
+
+func TestMemoryStoreTracksApprovalDecisionForGovernedRequest(t *testing.T) {
+	workflow := gov.NewApprovalWorkflow()
+	store := NewMemoryStoreWithApproval(workflow)
+	req, _, err := store.Create(context.Background(), "client-1", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	decision, ok := store.ApprovalDecision(req.RequestID)
+	if !ok {
+		t.Fatal("governed request should have a recorded approval decision")
+	}
+	if !decision.ApprovalRequired {
+		t.Fatal("approval decision should require approval")
+	}
+	if decision.Decision != "pending" {
+		t.Fatalf("decision=%q, want pending", decision.Decision)
+	}
+}
+
+func TestApprovalDecisionEndpointRecordsGovernedOutcome(t *testing.T) {
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	store := NewMemoryStoreWithApproval(gov.NewApprovalWorkflow())
+	request, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	h := NewHandler(store, auth)
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests/"+request.RequestID+"/approval", strings.NewReader(`{"decision":"approved","approved_by":"ops-user","reason":"review accepted"}`))
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status=%d, want 202: %s", rec.Code, rec.Body.String())
+	}
+	decision, ok := store.ApprovalDecision(request.RequestID)
+	if !ok {
+		t.Fatal("approval record was not persisted")
+	}
+	if decision.Decision != "approved" {
+		t.Fatalf("decision=%q, want approved", decision.Decision)
+	}
+	if decision.ApprovedBy != "ops-user" {
+		t.Fatalf("approved_by=%q, want ops-user", decision.ApprovedBy)
+	}
+	updated, err := store.Get(context.Background(), "client-a", request.RequestID)
+	if err != nil {
+		t.Fatalf("get error: %v", err)
+	}
+	if updated.Status != StatusQueued {
+		t.Fatalf("status=%q, want queued after approval", updated.Status)
+	}
+}
+
+func TestApprovalDecisionCanBeRetrievedByRequestOwner(t *testing.T) {
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	store := NewMemoryStoreWithApproval(gov.NewApprovalWorkflow())
+	request, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	if _, err := store.RecordApprovalDecision(request.RequestID, "approved", "ops-user", "review accepted"); err != nil {
+		t.Fatalf("record approval error: %v", err)
+	}
+	h := NewHandler(store, auth)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/intelligence/requests/"+request.RequestID+"/approval", nil)
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"decision":"approved"`) {
+		t.Fatalf("response=%s, want approved decision", rec.Body.String())
 	}
 }
 
