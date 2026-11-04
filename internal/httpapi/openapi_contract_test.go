@@ -22,6 +22,9 @@ func sectionBetween(t *testing.T, source, start, end string) string {
 		t.Fatalf("OpenAPI section start not found: %q", start)
 	}
 	startAt += len(start)
+	if end == "" {
+		return source[startAt:]
+	}
 	endAt := strings.Index(source[startAt:], end)
 	if endAt < 0 {
 		t.Fatalf("OpenAPI section end not found: %q", end)
