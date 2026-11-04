@@ -147,7 +147,7 @@ components:
             properties:
               type: { type: string, minLength: 1, maxLength: 64 }
               reference: { type: string, minLength: 1, maxLength: 1024 }
-        execution_mode: { type: string, enum: [analysis_only, governed] }
+        execution_mode: { type: string, const: analysis_only }
         desired_outputs:
           type: array
           maxItems: 50
@@ -159,10 +159,11 @@ components:
     Accepted:
       type: object
       additionalProperties: false
-      required: [request_id, status, created_at, status_url]
+      required: [request_id, status, approval_required, created_at, status_url]
       properties:
         request_id: { type: string, minLength: 1, maxLength: 128 }
         status: { $ref: "#/components/schemas/Status" }
+        approval_required: { type: boolean }
         created_at: { type: string, format: date-time }
         status_url: { type: string, format: uri-reference }
     Request:
@@ -173,7 +174,7 @@ components:
         request_id: { type: string }
         status: { $ref: "#/components/schemas/Status" }
         purpose: { type: string }
-        execution_mode: { type: string, enum: [analysis_only, governed] }
+        execution_mode: { type: string, const: analysis_only }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     CancellationAccepted:
