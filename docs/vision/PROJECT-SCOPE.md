@@ -135,23 +135,23 @@ The system classifies a proposed action and reports applicable policy and approv
 
 ## 7. User Roles
 
-### Requester
+### Requester (MVP)
 
 Submits intelligence requests and receives results.
 
-### Operator
+### Operator (MVP)
 
-Monitors execution, reviews evidence, and handles operational exceptions.
+Monitors analysis requests, reviews evidence, and handles operational exceptions within the read-only MVP boundary.
 
-### Approver
+### Maintainer (MVP)
 
-Authorizes actions that require human approval.
+Maintains the service, integrations, and implementation. Policy or access changes remain subject to separately defined governance controls.
 
-### Maintainer
+### Approver (later phase; not operational in MVP)
 
-Maintains the service, integrations, policies, and implementation.
+A role concept for authorizing actions that require human approval in a future governed-execution phase. The MVP does not provide an approval workflow or treat this role as granting authorization.
 
-Role definitions and permissions MUST be enforced by the authorization layer.
+Role definitions and permissions require an accepted IAM contract before enforcement is implemented; IAM decisions remain open until formally reviewed.
 
 ## 8. MVP Acceptance Criteria
 
@@ -192,7 +192,7 @@ The following capability progression is a planning boundary, not an approved del
 - **Later phase — approval-gated writes:** proposals and limited write actions only after authorization, approval-state, audit/evidence, and runtime enforcement requirements are accepted and tested.
 - **Later phase — broader controlled execution:** further automation only after a separate security and architecture review.
 
-## 10.1 Future Scope Candidates
+## 11. Future Scope Candidates
 
 Potential future capabilities include:
 
@@ -206,7 +206,7 @@ Potential future capabilities include:
 
 These items are candidates only and are not MVP commitments.
 
-## 11. Document Governance
+## 12. Document Governance
 
 This document is governed by `DOCUMENTATION-AUTHORITY.md`.
 
