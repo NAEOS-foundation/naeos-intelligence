@@ -138,13 +138,13 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	approver, ok := h.store.(interface {
-		RecordApprovalDecision(string, string, string, string) (gov.ApprovalDecision, error)
+		RecordApprovalDecision(context.Context, string, string, string, string, string) (gov.ApprovalDecision, error)
 	})
 	if !ok {
 		writeProblem(w, r, http.StatusServiceUnavailable, "APPROVAL_NOT_CONFIGURED", "Approval workflow is not configured")
 		return
 	}
-	decision, err := approver.RecordApprovalDecision(requestID, strings.ToLower(payload.Decision), approvedBy, payload.Reason)
+	decision, err := approver.RecordApprovalDecision(r.Context(), p.ClientID, requestID, strings.ToLower(payload.Decision), approvedBy, payload.Reason)
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -153,13 +153,18 @@ func (h *Handler) approval(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Approval decision could not be recorded")
 		return
 	}
+	updated, err := h.store.Get(r.Context(), p.ClientID, requestID)
+	if err != nil {
+		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Request status could not be retrieved")
+		return
+	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"request_id":         requestID,
-		"decision":           decision.Decision,
-		"approved_by":        decision.ApprovedBy,
-		"reason":             decision.Reason,
-		"status":             req.Status,
-		"approval_required":  decision.ApprovalRequired,
+		"request_id":        requestID,
+		"decision":          decision.Decision,
+		"approved_by":       decision.ApprovedBy,
+		"reason":            decision.Reason,
+		"status":            updated.Status,
+		"approval_required": decision.ApprovalRequired,
 	})
 }
 
