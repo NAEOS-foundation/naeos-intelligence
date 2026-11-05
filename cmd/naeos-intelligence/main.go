@@ -53,6 +53,11 @@ func run() error {
 	}
 	limiter := ratelimit.NewLimiter(rateLimitRate, rateLimitBurst)
 
+	validator, err := newOpenAPIValidator()
+	if err != nil {
+		return fmt.Errorf("initialize OpenAPI validator: %w", err)
+	}
+
 	var store httpapi.Store
 	var closeStore func()
 	dsn := os.Getenv("DATABASE_URL")
@@ -72,7 +77,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr: addr,
-		Handler: httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}, limiter),
+		Handler: httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}, limiter, validator),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -104,6 +109,23 @@ func run() error {
 }
 
 func storageMode(dsn string) string { if dsn == "" { return "memory" }; return "postgres" }
+
+func newOpenAPIValidator() (*httpapi.OpenAPIValidator, error) {
+	candidates := []string{
+		"api/openapi.yaml",
+		"../../api/openapi.yaml",
+		"/app/api/openapi.yaml",
+	}
+	var lastErr error
+	for _, path := range candidates {
+		v, err := httpapi.NewOpenAPIValidator(path)
+		if err == nil {
+			return v, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("openapi spec not found in any candidate path, last error: %w", lastErr)
+}
 
 func main() {
 	if err := run(); err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }

@@ -14,8 +14,6 @@ import (
 	policy "github.com/NAEOS-foundation/naeos-intelligence/internal/policy"
 )
 
-const maxBodyBytes = 1 << 20
-
 var correlationPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 var errPayloadTooLarge = errors.New("request body exceeds 1 MiB")
 
@@ -25,7 +23,7 @@ type Handler struct {
 	mux   *http.ServeMux
 }
 
-func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter) http.Handler {
+func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter, validator *OpenAPIValidator) http.Handler {
 	h := &Handler{store: store, auth: auth, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/health", h.health)
 	h.mux.HandleFunc("GET /api/v1/ready", h.ready)
@@ -34,7 +32,11 @@ func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter) htt
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:write", http.HandlerFunc(h.approve)))
 
-	var wrapped http.Handler = h.requestID(h.mux)
+	var wrapped http.Handler = h.mux
+	if validator != nil {
+		wrapped = validator.Middleware(wrapped)
+	}
+	wrapped = h.requestID(wrapped)
 	if limiter != nil {
 		wrapped = ratelimit.NewMiddleware(wrapped, limiter)
 	}

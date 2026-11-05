@@ -57,7 +57,7 @@ func e2ePostgresHandler(t *testing.T, ctx context.Context) (http.Handler, *postg
 		ClientID: "e2e-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100)), store
+	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator()), store
 }
 
 func TestE2EPostgresSubmitGetCancel(t *testing.T) {
@@ -159,8 +159,8 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 		ClientID: "client-b",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	hA := httpapi.NewHandler(store, authA, ratelimit.NewLimiter(100, 100))
-	hB := httpapi.NewHandler(store, authB, ratelimit.NewLimiter(100, 100))
+	hA := httpapi.NewHandler(store, authA, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator())
+	hB := httpapi.NewHandler(store, authB, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator())
 
 	// Submit as client-a
 	body := `{"purpose":"cross client isolation","execution_mode":"analysis_only"}`

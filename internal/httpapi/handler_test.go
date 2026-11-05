@@ -21,9 +21,23 @@ type fakeVerifier struct {
 
 func (f fakeVerifier) Verify(context.Context, string) (Principal, error) { return f.principal, f.err }
 
+func MustTestValidator() *OpenAPIValidator {
+	v, err := NewOpenAPIValidator("../../api/openapi.yaml")
+	if err != nil {
+		panic(fmt.Sprintf("create test OpenAPI validator: %v", err))
+	}
+	return v
+}
+
+func jsonRequest(method, path, body string) *http.Request {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
 func testHandler() http.Handler {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
-	return NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100))
+	return NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator())
 }
 
 func TestHealthIsPublicAndMinimal(t *testing.T) {
@@ -37,7 +51,7 @@ func TestHealthIsPublicAndMinimal(t *testing.T) {
 func TestMissingBearerTokenRejected(t *testing.T) {
 	h := testHandler()
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`)))
+	h.ServeHTTP(rec, jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"test","execution_mode":"analysis_only"}`))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status=%d, want 401", rec.Code)
 	}
@@ -45,8 +59,8 @@ func TestMissingBearerTokenRejected(t *testing.T) {
 
 func TestInsufficientScopeRejected(t *testing.T) {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
-	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100))
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`))
+	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator())
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"test","execution_mode":"analysis_only"}`)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -57,7 +71,7 @@ func TestInsufficientScopeRejected(t *testing.T) {
 
 func TestOversizedRequestBodyRejected(t *testing.T) {
 	h := testHandler()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"`+strings.Repeat("a", maxBodyBytes+1)+`","execution_mode":"analysis_only"}`))
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"`+strings.Repeat("a", maxBodyBytes+1)+`","execution_mode":"analysis_only"}`)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -67,9 +81,9 @@ func TestOversizedRequestBodyRejected(t *testing.T) {
 }
 
 func TestProtectedRouteFailsClosedWithoutVerifier(t *testing.T) {
-	h := NewHandler(NewMemoryStore(), Authenticator{}, ratelimit.NewLimiter(100, 100))
+	h := NewHandler(NewMemoryStore(), Authenticator{}, ratelimit.NewLimiter(100, 100), MustTestValidator())
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`)))
+	h.ServeHTTP(rec, jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"test","execution_mode":"analysis_only"}`))
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status=%d, want 503", rec.Code)
 	}
@@ -117,7 +131,7 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 		ClientID: "client-a",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator())
 
 	// Create a governed request that requires approval
 	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
@@ -130,7 +144,7 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 
 	// Record an approval decision
 	body := `{"decision":"approved","approved_by":"alice","reason":"risk assessed"}`
-	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -158,7 +172,7 @@ func TestApprovalEndpointRejectsInvalidDecision(t *testing.T) {
 		ClientID: "client-a",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator())
 
 	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
 	if err != nil {
@@ -167,7 +181,7 @@ func TestApprovalEndpointRejectsInvalidDecision(t *testing.T) {
 
 	// Invalid decision value
 	body := `{"decision":"maybe"}`
-	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -182,7 +196,7 @@ func TestApprovalEndpointMissingDecision(t *testing.T) {
 		ClientID: "client-a",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator())
 
 	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
 	if err != nil {
@@ -190,7 +204,7 @@ func TestApprovalEndpointMissingDecision(t *testing.T) {
 	}
 
 	body := `{}`
-	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -212,9 +226,9 @@ func TestApprovalEndpointCrossClientRejected(t *testing.T) {
 	}
 
 	// Client B tries to approve client A's request
-	hB := NewHandler(store, authB, ratelimit.NewLimiter(100, 100))
+	hB := NewHandler(store, authB, ratelimit.NewLimiter(100, 100), MustTestValidator())
 	body := `{"decision":"approved"}`
-	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	hB.ServeHTTP(rec, r)
@@ -226,7 +240,7 @@ func TestApprovalEndpointCrossClientRejected(t *testing.T) {
 func TestSubmitReplayAndConflict(t *testing.T) {
 	h := testHandler()
 	submit := func(body string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+		r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", body)
 		r.Header.Set("Authorization", "Bearer fake")
 		r.Header.Set("Idempotency-Key", "key-1")
 		rec := httptest.NewRecorder()
@@ -264,13 +278,21 @@ func TestSubmitReplayAndConflict(t *testing.T) {
 
 func TestMalformedAndUnknownFieldsRejected(t *testing.T) {
 	h := testHandler()
-	for _, body := range []string{`{"purpose":`, `{"purpose":"x","execution_mode":"analysis_only","extra":"no"}`, `{"purpose":"x","execution_mode":"analysis_only"} {}`} {
-		r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	cases := []struct {
+		body     string
+		wantCode int
+	}{
+		{body: `{"purpose":`, wantCode: http.StatusBadRequest},
+		{body: `{"purpose":"x","execution_mode":"analysis_only","extra":"no"}`, wantCode: http.StatusUnprocessableEntity},
+		{body: `{"purpose":"x","execution_mode":"analysis_only"} {}`, wantCode: http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", tc.body)
 		r.Header.Set("Authorization", "Bearer fake")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, r)
-		if rec.Code != http.StatusBadRequest {
-			t.Errorf("body=%q status=%d, want 400", body, rec.Code)
+		if rec.Code != tc.wantCode {
+			t.Errorf("body=%q status=%d, want %d", tc.body, rec.Code, tc.wantCode)
 		}
 	}
 }
@@ -296,7 +318,7 @@ func TestOwnerIsolationAndCancellation(t *testing.T) {
 
 func TestInvalidInputProduces422(t *testing.T) {
 	h := testHandler()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":" ","execution_mode":"analysis_only"}`))
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":" ","execution_mode":"analysis_only"}`)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -312,9 +334,9 @@ func TestIdentityHeadersCannotOverrideValidatedPrincipal(t *testing.T) {
 		ClientID: "client-a",
 		Scopes:   map[string]bool{"intelligence:read": true, "intelligence:write": true},
 	}}}
-	handlerA := NewHandler(store, clientA, ratelimit.NewLimiter(100, 100))
+	handlerA := NewHandler(store, clientA, ratelimit.NewLimiter(100, 100), MustTestValidator())
 
-	create := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"identity boundary","execution_mode":"analysis_only"}`))
+	create := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"identity boundary","execution_mode":"analysis_only"}`)
 	create.Header.Set("Authorization", "Bearer validated-client-a")
 	create.Header.Set("X-Client-ID", "client-b")
 	create.Header.Set("X-Principal", "client-b")
@@ -347,7 +369,7 @@ func TestIdentityHeadersCannotOverrideValidatedPrincipal(t *testing.T) {
 		ClientID: "client-b",
 		Scopes:   map[string]bool{"intelligence:read": true},
 	}}}
-	handlerB := NewHandler(store, clientB, ratelimit.NewLimiter(100, 100))
+	handlerB := NewHandler(store, clientB, ratelimit.NewLimiter(100, 100), MustTestValidator())
 	getB := httptest.NewRequest(http.MethodGet, accepted.StatusURL, nil)
 	getB.Header.Set("Authorization", "Bearer validated-client-b")
 	recB := httptest.NewRecorder()
@@ -375,31 +397,31 @@ func TestProblemResponsesMatchPublicContract(t *testing.T) {
 		{
 			name: "missing bearer",
 			handler: testHandler(),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
+			request: jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"x","execution_mode":"analysis_only"}`),
 			wantStatus: http.StatusUnauthorized, wantCode: "UNAUTHENTICATED",
 		},
 		{
 			name: "insufficient scope",
-			handler: NewHandler(NewMemoryStore(), authReadOnly, ratelimit.NewLimiter(100, 100)),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
+			handler: NewHandler(NewMemoryStore(), authReadOnly, ratelimit.NewLimiter(100, 100), MustTestValidator()),
+			request: jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"x","execution_mode":"analysis_only"}`),
 			wantStatus: http.StatusForbidden, wantCode: "FORBIDDEN",
 		},
 		{
 			name: "invalid input",
 			handler: testHandler(),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":" ","execution_mode":"analysis_only"}`)),
+			request: jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":" ","execution_mode":"analysis_only"}`),
 			wantStatus: http.StatusUnprocessableEntity, wantCode: "UNPROCESSABLE_REQUEST",
 		},
 		{
 			name: "malformed body",
 			handler: testHandler(),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":`)),
+			request: jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":`),
 			wantStatus: http.StatusBadRequest, wantCode: "INVALID_REQUEST",
 		},
 		{
 			name: "missing verifier",
-			handler: NewHandler(NewMemoryStore(), Authenticator{}, ratelimit.NewLimiter(100, 100)),
-			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
+			handler: NewHandler(NewMemoryStore(), Authenticator{}, ratelimit.NewLimiter(100, 100), MustTestValidator()),
+			request: jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"x","execution_mode":"analysis_only"}`),
 			wantStatus: http.StatusServiceUnavailable, wantCode: "SERVICE_UNAVAILABLE",
 		},
 	}
@@ -442,7 +464,7 @@ func TestMetadataPropertyLimitEnforced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(string(body)))
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", string(body))
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	testHandler().ServeHTTP(rec, r)
@@ -467,12 +489,12 @@ func TestHTTPClientOwnershipIsolationAndIdempotencyScope(t *testing.T) {
 			Scopes: map[string]bool{"intelligence:read": true, "intelligence:write": true},
 		}}}
 	}
-	handlerA := NewHandler(store, authFor("client-a"), ratelimit.NewLimiter(100, 100))
-	handlerB := NewHandler(store, authFor("client-b"), ratelimit.NewLimiter(100, 100))
+	handlerA := NewHandler(store, authFor("client-a"), ratelimit.NewLimiter(100, 100), MustTestValidator())
+	handlerB := NewHandler(store, authFor("client-b"), ratelimit.NewLimiter(100, 100), MustTestValidator())
 	const body = "{\"purpose\":\"ownership contract\",\"execution_mode\":\"analysis_only\"}"
 
 	submit := func(h http.Handler, key string) Accepted {
-		r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+		r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", body)
 		r.Header.Set("Authorization", "Bearer fake")
 		r.Header.Set("Idempotency-Key", key)
 		rec := httptest.NewRecorder()
@@ -525,7 +547,7 @@ func TestCancelCompletedRequestReturnsContractConflict(t *testing.T) {
 		ClientID: "client-a",
 		Scopes: map[string]bool{"intelligence:read": true, "intelligence:write": true},
 	}}}
-	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator())
 	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/cancel", req.RequestID), nil)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
