@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	policy "github.com/NAEOS-foundation/naeos-intelligence/internal/policy"
 )
 
@@ -24,14 +25,19 @@ type Handler struct {
 	mux   *http.ServeMux
 }
 
-func NewHandler(store Store, auth Authenticator) http.Handler {
+func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter) http.Handler {
 	h := &Handler{store: store, auth: auth, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/health", h.health)
 	h.mux.HandleFunc("GET /api/v1/ready", h.ready)
 	h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))
 	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}", auth.Middleware("intelligence:read", http.HandlerFunc(h.get)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
-	return h.requestID(h.mux)
+
+	var wrapped http.Handler = h.requestID(h.mux)
+	if limiter != nil {
+		wrapped = ratelimit.NewMiddleware(wrapped, limiter)
+	}
+	return wrapped
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {

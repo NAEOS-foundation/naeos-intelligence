@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	gov "github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 )
 
@@ -22,7 +23,7 @@ func (f fakeVerifier) Verify(context.Context, string) (Principal, error) { retur
 
 func testHandler() http.Handler {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
-	return NewHandler(NewMemoryStore(), auth)
+	return NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100))
 }
 
 func TestHealthIsPublicAndMinimal(t *testing.T) {
@@ -44,7 +45,7 @@ func TestMissingBearerTokenRejected(t *testing.T) {
 
 func TestInsufficientScopeRejected(t *testing.T) {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
-	h := NewHandler(NewMemoryStore(), auth)
+	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100))
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`))
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
@@ -66,7 +67,7 @@ func TestOversizedRequestBodyRejected(t *testing.T) {
 }
 
 func TestProtectedRouteFailsClosedWithoutVerifier(t *testing.T) {
-	h := NewHandler(NewMemoryStore(), Authenticator{})
+	h := NewHandler(NewMemoryStore(), Authenticator{}, ratelimit.NewLimiter(100, 100))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"test","execution_mode":"analysis_only"}`)))
 	if rec.Code != http.StatusServiceUnavailable {
@@ -215,7 +216,7 @@ func TestIdentityHeadersCannotOverrideValidatedPrincipal(t *testing.T) {
 		ClientID: "client-a",
 		Scopes:   map[string]bool{"intelligence:read": true, "intelligence:write": true},
 	}}}
-	handlerA := NewHandler(store, clientA)
+	handlerA := NewHandler(store, clientA, ratelimit.NewLimiter(100, 100))
 
 	create := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"identity boundary","execution_mode":"analysis_only"}`))
 	create.Header.Set("Authorization", "Bearer validated-client-a")
@@ -250,7 +251,7 @@ func TestIdentityHeadersCannotOverrideValidatedPrincipal(t *testing.T) {
 		ClientID: "client-b",
 		Scopes:   map[string]bool{"intelligence:read": true},
 	}}}
-	handlerB := NewHandler(store, clientB)
+	handlerB := NewHandler(store, clientB, ratelimit.NewLimiter(100, 100))
 	getB := httptest.NewRequest(http.MethodGet, accepted.StatusURL, nil)
 	getB.Header.Set("Authorization", "Bearer validated-client-b")
 	recB := httptest.NewRecorder()
@@ -283,7 +284,7 @@ func TestProblemResponsesMatchPublicContract(t *testing.T) {
 		},
 		{
 			name: "insufficient scope",
-			handler: NewHandler(NewMemoryStore(), authReadOnly),
+			handler: NewHandler(NewMemoryStore(), authReadOnly, ratelimit.NewLimiter(100, 100)),
 			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
 			wantStatus: http.StatusForbidden, wantCode: "FORBIDDEN",
 		},
@@ -301,7 +302,7 @@ func TestProblemResponsesMatchPublicContract(t *testing.T) {
 		},
 		{
 			name: "missing verifier",
-			handler: NewHandler(NewMemoryStore(), Authenticator{}),
+			handler: NewHandler(NewMemoryStore(), Authenticator{}, ratelimit.NewLimiter(100, 100)),
 			request: httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(`{"purpose":"x","execution_mode":"analysis_only"}`)),
 			wantStatus: http.StatusServiceUnavailable, wantCode: "SERVICE_UNAVAILABLE",
 		},
@@ -370,8 +371,8 @@ func TestHTTPClientOwnershipIsolationAndIdempotencyScope(t *testing.T) {
 			Scopes: map[string]bool{"intelligence:read": true, "intelligence:write": true},
 		}}}
 	}
-	handlerA := NewHandler(store, authFor("client-a"))
-	handlerB := NewHandler(store, authFor("client-b"))
+	handlerA := NewHandler(store, authFor("client-a"), ratelimit.NewLimiter(100, 100))
+	handlerB := NewHandler(store, authFor("client-b"), ratelimit.NewLimiter(100, 100))
 	const body = "{\"purpose\":\"ownership contract\",\"execution_mode\":\"analysis_only\"}"
 
 	submit := func(h http.Handler, key string) Accepted {
@@ -428,7 +429,7 @@ func TestCancelCompletedRequestReturnsContractConflict(t *testing.T) {
 		ClientID: "client-a",
 		Scopes: map[string]bool{"intelligence:read": true, "intelligence:write": true},
 	}}}
-	h := NewHandler(store, auth)
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
 	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/cancel", req.RequestID), nil)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()

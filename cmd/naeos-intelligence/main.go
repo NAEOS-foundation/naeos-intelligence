@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/config"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 )
 
 const applicationName = "NAEOS Intelligence"
@@ -36,6 +39,20 @@ func run() error {
 	addr := os.Getenv("NAEOS_INTELLIGENCE_HTTP_ADDR")
 	if addr == "" { addr = "127.0.0.1:8080" }
 
+	rateLimitRate := 10.0
+	rateLimitBurst := 20
+	if v := os.Getenv("NAEOS_INTELLIGENCE_RATE_LIMIT_RATE"); v != "" {
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil && parsed > 0 {
+			rateLimitRate = parsed
+		}
+	}
+	if v := os.Getenv("NAEOS_INTELLIGENCE_RATE_LIMIT_BURST"); v != "" {
+		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && parsed > 0 {
+			rateLimitBurst = parsed
+		}
+	}
+	limiter := ratelimit.NewLimiter(rateLimitRate, rateLimitBurst)
+
 	var store httpapi.Store
 	var closeStore func()
 	dsn := os.Getenv("DATABASE_URL")
@@ -55,7 +72,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr: addr,
-		Handler: httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}),
+		Handler: httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}, limiter),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 10 * time.Second,
 		WriteTimeout: 15 * time.Second,
