@@ -57,7 +57,7 @@ These are based on repository files and their stated status; this document does 
 | P0-02 | IAM worksheet decisions remain open | Provider-specific implementation or production trust setup may encode assumptions | Resolve Phase 5 IAM decisions before provider-specific hardening; maintain fail-closed behavior. |
 | P0-03 | System Architecture state labels differ from Request Lifecycle states (e.g. `validated`, `contextualizing`, `planning`, `authorized` versus `accepted`, `queued`, `running`) | State machine and API/persistence contract drift | Reconcile lifecycle vocabulary in a deliberate docs/spec review before worker implementation. |
 | P0-04 | README's high-level roadmap puts Intelligence Core before Governance/Evidence, while staged prompts place persistence/IAM/policy gates before agent execution | Roadmap sequence can be interpreted inconsistently | Align README roadmap with the staged implementation plan; preserve security-first gates and clarify phase labels. |
-| P0-05 | Error-handling specification appears incomplete in its error-envelope details | Implementers may infer unspecified response fields | Complete the specification and reconcile it with actual HTTP error responses and API contract. |
+| P0-05 | Error envelope and shared public error-code vocabulary are documented in `ERROR-HANDLING-SPECIFICATION.md` and `API-CONTRACT.md`, but OpenAPI does not yet declare every listed status/code pair for each operation | Endpoint-level error behavior may drift from the shared contract; clients may lack complete response coverage | Close endpoint-specific OpenAPI response coverage gaps and verify status/code mapping through contract tests. |
 | P0-06 | Four documentation filenames contained malformed suffixes (resolved in docs-only cleanup PR #20) | Links/tools and prompt references could fail or be confusing | Normalized paths; separately verify internal links as needed. |
 | P0-07 | Production operational requirements are not all demonstrated by repository-level CI | Passing unit/CI checks alone do not establish early-access readiness | Plan deployment-level validation, secrets/trust configuration, migration operations, monitoring and E2E evidence. |
 
@@ -67,7 +67,7 @@ Prioritize a bounded documentation and acceptance-alignment milestone rather tha
 
 1. Reconcile lifecycle state vocabulary across architecture, lifecycle specification, API contract, and persistence behavior.
 2. Refresh README and phase status summaries so roadmap and implementation evidence agree.
-3. Complete and reconcile the error-handling specification against the implemented API error envelope.
+3. Reconcile endpoint-specific OpenAPI error response declarations with the shared error vocabulary and add contract tests for the remaining status/code mappings.
 4. Resolve the IAM worksheet decisions that are prerequisites for provider-specific and deployment-level work.
 5. After these review gates, define targeted contract, lifecycle, and deployment validation tasks.
 
