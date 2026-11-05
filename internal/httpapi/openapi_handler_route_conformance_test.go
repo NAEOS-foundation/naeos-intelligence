@@ -43,6 +43,10 @@ func TestOpenAPIOperationsMatchHTTPRoutes(t *testing.T) {
 			name: "cancel", route: `h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))`,
 			path: "  /intelligence/requests/{request_id}/cancel:\n", method: "post:", operationID: "cancelIntelligenceRequest", scope: "intelligence:write",
 		},
+		{
+			name: "approve", route: `h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:write", http.HandlerFunc(h.approve)))`,
+			path: "  /intelligence/requests/{request_id}/approval:\n", method: "post:", operationID: "recordApprovalDecision", scope: "intelligence:write",
+		},
 	}
 
 	for _, tc := range cases {

@@ -111,19 +111,115 @@ func TestMemoryStoreTracksApprovalDecisionForGovernedRequest(t *testing.T) {
 	}
 }
 
-func TestApprovalHTTPRoutesAreNotExposedInMVP(t *testing.T) {
-	h := testHandler()
-	for _, methodAndPath := range []struct{ method, path string }{
-		{http.MethodGet, "/api/v1/intelligence/requests/request-1/approval"},
-		{http.MethodPost, "/api/v1/intelligence/requests/request-1/approval"},
-	} {
-		r := httptest.NewRequest(methodAndPath.method, methodAndPath.path, strings.NewReader(`{"decision":"approved"}`))
-		r.Header.Set("Authorization", "Bearer fake")
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, r)
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("%s %s status=%d, want 404", methodAndPath.method, methodAndPath.path, rec.Code)
-		}
+func TestApprovalEndpointRecordsDecision(t *testing.T) {
+	store := NewMemoryStore()
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+
+	// Create a governed request that requires approval
+	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+	if req.Status != StatusRequiresApproval {
+		t.Fatalf("status=%q, want requires_approval", req.Status)
+	}
+
+	// Record an approval decision
+	body := `{"decision":"approved","approved_by":"alice","reason":"risk assessed"}`
+	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve status=%d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var decision ApprovalDecisionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &decision); err != nil {
+		t.Fatalf("decode decision: %v", err)
+	}
+	if decision.Decision != "approved" {
+		t.Fatalf("decision=%q, want approved", decision.Decision)
+	}
+	if decision.ApprovedBy != "alice" {
+		t.Fatalf("approved_by=%q, want alice", decision.ApprovedBy)
+	}
+	if decision.RequestID != req.RequestID {
+		t.Fatalf("request_id=%q, want %q", decision.RequestID, req.RequestID)
+	}
+}
+
+func TestApprovalEndpointRejectsInvalidDecision(t *testing.T) {
+	store := NewMemoryStore()
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+
+	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	// Invalid decision value
+	body := `{"decision":"maybe"}`
+	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d, want 422: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestApprovalEndpointMissingDecision(t *testing.T) {
+	store := NewMemoryStore()
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100))
+
+	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	body := `{}`
+	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d, want 422: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestApprovalEndpointCrossClientRejected(t *testing.T) {
+	store := NewMemoryStore()
+	authB := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-b",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}}}
+
+	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	// Client B tries to approve client A's request
+	hB := NewHandler(store, authB, ratelimit.NewLimiter(100, 100))
+	body := `{"decision":"approved"}`
+	r := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	hB.ServeHTTP(rec, r)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404: %s", rec.Code, rec.Body.String())
 	}
 }
 

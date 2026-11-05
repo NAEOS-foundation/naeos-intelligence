@@ -146,6 +146,38 @@ paths:
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
+  /intelligence/requests/{request_id}/approval:
+    parameters:
+      - $ref: "#/components/parameters/RequestIDPath"
+    post:
+      operationId: recordApprovalDecision
+      summary: Record an approval decision for a request
+      security:
+        - bearerAuth: [intelligence:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionInput"
+      responses:
+        "200":
+          description: Approval decision recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalDecisionResponse" }
+        "401":
+          $ref: "#/components/responses/Problem"
+          description: UNAUTHENTICATED — missing or invalid credentials
+        "403":
+          $ref: "#/components/responses/Problem"
+          description: FORBIDDEN — authenticated client lacks the required scope
+        "404":
+          $ref: "#/components/responses/Problem"
+          description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
 components:
   securitySchemes:
     bearerAuth:
@@ -237,6 +269,27 @@ components:
         request_id: { type: string }
         status: { $ref: "#/components/schemas/Status" }
         message: { type: string, maxLength: 1000 }
+    ApprovalDecisionInput:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, denied, rejected] }
+        approved_by: { type: string, maxLength: 256 }
+        reason: { type: string, maxLength: 1000 }
+    ApprovalDecisionResponse:
+      type: object
+      additionalProperties: false
+      required: [request_id, action, execution_mode, decision, approval_required, created_at]
+      properties:
+        request_id: { type: string }
+        action: { type: string }
+        execution_mode: { type: string }
+        decision: { type: string }
+        approved_by: { type: string, maxLength: 256 }
+        reason: { type: string, maxLength: 1000 }
+        approval_required: { type: boolean }
+        created_at: { type: string, format: date-time }
     Status:
       type: string
       enum: [accepted, queued, running, completed, failed, cancelled, requires_approval]
