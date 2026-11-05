@@ -49,13 +49,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Accepted" }
-        "400": { $ref: "#/components/responses/Problem" }
-        "401": { $ref: "#/components/responses/Problem" }
-        "403": { $ref: "#/components/responses/Problem" }
-        "409": { $ref: "#/components/responses/Problem" }
-        "413": { $ref: "#/components/responses/Problem" }
-        "422": { $ref: "#/components/responses/Problem" }
-        "503": { $ref: "#/components/responses/Problem" }
+        "400":
+          $ref: "#/components/responses/Problem"
+          description: INVALID_REQUEST — malformed JSON, unknown fields, or invalid idempotency key
+        "401":
+          $ref: "#/components/responses/Problem"
+          description: UNAUTHENTICATED — missing or invalid credentials
+        "403":
+          $ref: "#/components/responses/Problem"
+          description: FORBIDDEN — authenticated client lacks the required scope
+        "409":
+          $ref: "#/components/responses/Problem"
+          description: CONFLICT — idempotency key conflicts with a different request payload
+        "413":
+          $ref: "#/components/responses/Problem"
+          description: PAYLOAD_TOO_LARGE — request body exceeds the configured limit
+        "422":
+          $ref: "#/components/responses/Problem"
+          description: UNPROCESSABLE_REQUEST — request violates semantic validation or policy constraints
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — service dependency is temporarily unavailable; implementation mapping requires validation
   /intelligence/requests/{request_id}:
     parameters:
       - $ref: "#/components/parameters/RequestIDPath"
@@ -70,10 +84,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Request" }
-        "401": { $ref: "#/components/responses/Problem" }
-        "403": { $ref: "#/components/responses/Problem" }
-        "404": { $ref: "#/components/responses/Problem" }
-        "503": { $ref: "#/components/responses/Problem" }
+        "401":
+          $ref: "#/components/responses/Problem"
+          description: UNAUTHENTICATED — missing or invalid credentials
+        "403":
+          $ref: "#/components/responses/Problem"
+          description: FORBIDDEN — authenticated client lacks the required scope
+        "404":
+          $ref: "#/components/responses/Problem"
+          description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — service dependency is temporarily unavailable; implementation mapping requires validation
   /intelligence/requests/{request_id}/cancel:
     parameters:
       - $ref: "#/components/parameters/RequestIDPath"
@@ -90,11 +112,21 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CancellationAccepted" }
-        "401": { $ref: "#/components/responses/Problem" }
-        "403": { $ref: "#/components/responses/Problem" }
-        "404": { $ref: "#/components/responses/Problem" }
-        "409": { $ref: "#/components/responses/Problem" }
-        "503": { $ref: "#/components/responses/Problem" }
+        "401":
+          $ref: "#/components/responses/Problem"
+          description: UNAUTHENTICATED — missing or invalid credentials
+        "403":
+          $ref: "#/components/responses/Problem"
+          description: FORBIDDEN — authenticated client lacks the required scope
+        "404":
+          $ref: "#/components/responses/Problem"
+          description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "409":
+          $ref: "#/components/responses/Problem"
+          description: CONFLICT — request is not cancellable in its current lifecycle state
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — service dependency is temporarily unavailable; implementation mapping requires validation
 components:
   securitySchemes:
     bearerAuth:
