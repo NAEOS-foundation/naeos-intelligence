@@ -236,27 +236,23 @@ Each stage MUST have an explicit state and failure behavior.
 
 ## 7. State Model
 
-Initial request states:
+The architecture describes the proposed target lifecycle; it does not assert that each state is implemented or enabled in the read-only MVP. The current API/lifecycle implementation record uses `accepted`, `queued`, `running`, `completed`, `failed`, and `cancelled`; scheduling, worker execution, and approval remain separately gated capabilities. Refer to `docs/specifications/REQUEST-LIFECYCLE.md` for the lifecycle vocabulary and implementation boundary.
 
-| State | Description |
+Target processing stages (not a persisted-state enum):
+
+| Stage | Description |
 |---|---|
-| `received` | Request accepted |
-| `validated` | Authentication and schema checks passed |
-| `contextualizing` | Relevant context is being retrieved |
-| `planning` | Plan is being generated |
+| `authentication_validation` | Authentication and request schema validation |
+| `context_retrieval` | Relevant authorized context is retrieved |
+| `planning` | A proposed plan is generated |
 | `policy_evaluation` | Proposed actions are evaluated |
-| `awaiting_approval` | Human approval is required |
-| `authorized` | Policy permits the action |
-| `executing` | Authorized tool execution is in progress |
-| `verifying` | Outcome is being verified |
-| `completed` | Request completed successfully |
-| `denied` | Action was denied |
-| `failed` | Request failed |
-| `cancelled` | Request was cancelled |
+| `approval` | Human approval is obtained when required |
+| `authorization_revalidation` | Authorization is checked at the final controllable boundary |
+| `execution` | Authorized runtime carries out supported actions |
+| `verification` | Outcomes are evaluated against evidence |
+| `finalization` | Results and required evidence are persisted |
 
-State transitions MUST be validated by the orchestrator.
-
-A request MUST NOT transition directly from planning to executing without policy evaluation and required approval.
+These stages are conceptual processing steps and must not be confused with request state values. State transitions MUST be validated by the orchestrator. A request MUST NOT transition into consequential execution without policy evaluation, required approval, and final authorization revalidation.
 
 ## 8. Integration with NAEOS Core
 
