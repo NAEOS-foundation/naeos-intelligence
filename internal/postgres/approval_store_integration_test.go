@@ -60,6 +60,9 @@ func TestPostgresDurableApprovalDecision(t *testing.T) {
 	if _, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "denied", "reviewer", "changed", "corr-approval"); !errors.Is(err, httpapi.ErrConflict) {
 		t.Fatalf("conflicting duplicate should be conflict, got %v", err)
 	}
+	if _, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "approved", "reviewer", "approved for analysis", "corr-other"); !errors.Is(err, httpapi.ErrConflict) {
+		t.Fatalf("replay using another correlation ID should be rejected, got %v", err)
+	}
 
 	var approvalCount, auditCount, transitionCount int
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM approval_decisions WHERE request_id=$1::uuid", request.RequestID).Scan(&approvalCount); err != nil {
