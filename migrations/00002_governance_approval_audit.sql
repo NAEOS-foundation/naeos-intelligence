@@ -8,6 +8,7 @@ CREATE TABLE approval_decisions (
     decision TEXT NOT NULL CHECK (decision IN ('approved', 'denied', 'rejected', 'pending')),
     approved_by TEXT NOT NULL CHECK (length(approved_by) BETWEEN 1 AND 255),
     reason TEXT CHECK (reason IS NULL OR length(reason) <= 4000),
+    correlation_id TEXT CHECK (correlation_id IS NULL OR length(correlation_id) <= 255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX approval_decisions_client_created_idx ON approval_decisions (client_id, created_at DESC);
