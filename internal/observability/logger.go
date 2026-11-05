@@ -1,7 +1,9 @@
 package observability
 
 import (
-	"fmt"
+	"encoding/json"
+	"io"
+	"os"
 	"strings"
 	"time"
 )
@@ -29,17 +31,26 @@ type LogEntry struct {
 	Status    string
 }
 
-// Logger stores a service name and optional correlation context for structured logs.
+// Logger stores a service name, optional correlation context, and an output
+// writer for structured logs.
 type Logger struct {
 	Service   string
 	Component string
 	RequestID string
 	TraceID   string
+	out       io.Writer
 }
 
-// NewLogger creates a logger instance for a component.
+// NewLogger creates a logger instance for a component. Output defaults to os.Stdout.
 func NewLogger(service string) *Logger {
-	return &Logger{Service: strings.TrimSpace(service), Component: "core"}
+	return &Logger{Service: strings.TrimSpace(service), Component: "core", out: os.Stdout}
+}
+
+// WithOutput sets the output writer for structured log entries.
+func (l *Logger) WithOutput(w io.Writer) *Logger {
+	clone := *l
+	clone.out = w
+	return &clone
 }
 
 // WithRequestID adds request correlation to this logger instance.
@@ -84,6 +95,11 @@ func (l *Logger) log(level, event string, kv ...string) LogEntry {
 	if entry.Service == "" {
 		entry.Service = "naeos-intelligence"
 	}
-	_ = fmt.Sprintf("%v", entry)
+	if l.out != nil {
+		if b, err := json.Marshal(entry); err == nil {
+			b = append(b, '\n')
+			_, _ = l.out.Write(b)
+		}
+	}
 	return entry
 }

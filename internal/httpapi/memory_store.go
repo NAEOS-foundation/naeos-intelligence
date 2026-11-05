@@ -223,3 +223,10 @@ func (s *MemoryStore) Cancel(ctx context.Context, clientID, requestID, correlati
 		return Request{}, ErrConflict
 	}
 }
+
+func (s *MemoryStore) Ping(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}

@@ -27,6 +27,7 @@ type Handler struct {
 func NewHandler(store Store, auth Authenticator) http.Handler {
 	h := &Handler{store: store, auth: auth, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/health", h.health)
+	h.mux.HandleFunc("GET /api/v1/ready", h.ready)
 	h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))
 	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}", auth.Middleware("intelligence:read", http.HandlerFunc(h.get)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
@@ -35,6 +36,14 @@ func NewHandler(store Store, auth Authenticator) http.Handler {
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
+}
+
+func (h *Handler) ready(w http.ResponseWriter, r *http.Request) {
+	if err := h.store.Ping(r.Context()); err != nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Store is not ready")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
 func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {

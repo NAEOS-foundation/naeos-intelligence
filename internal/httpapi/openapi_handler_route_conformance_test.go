@@ -28,6 +28,10 @@ func TestOpenAPIOperationsMatchHTTPRoutes(t *testing.T) {
 			path: "  /health:\n", method: "get:", operationID: "getHealth",
 		},
 		{
+			name: "ready", route: `h.mux.HandleFunc("GET /api/v1/ready", h.ready)`,
+			path: "  /ready:\n", method: "get:", operationID: "getReady",
+		},
+		{
 			name: "submit", route: `h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))`,
 			path: "  /intelligence/requests:\n", method: "post:", operationID: "submitIntelligenceRequest", scope: "intelligence:write",
 		},

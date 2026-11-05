@@ -72,6 +72,13 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
 		"\"409\":\n          $ref: \"#/components/responses/Problem\"",
 	)
+
+	ready := sectionBetween(t, spec, "  /ready:\n", "  /intelligence/requests:\n")
+	assertOpenAPIContains(t, ready,
+		"operationId: getReady",
+		"\"200\":",
+		"\"503\":\n          $ref: \"#/components/responses/Problem\"",
+	)
 }
 
 func TestOpenAPIProblemEnvelopeAndInputBounds(t *testing.T) {

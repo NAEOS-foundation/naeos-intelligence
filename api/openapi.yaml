@@ -24,6 +24,25 @@ paths:
                 required: [status]
                 properties:
                   status: { type: string, const: healthy }
+  /ready:
+    get:
+      operationId: getReady
+      summary: Readiness endpoint; reports store connectivity
+      security: []
+      responses:
+        "200":
+          description: Service ready
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status: { type: string, const: ready }
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — store is not reachable
   /intelligence/requests:
     post:
       operationId: submitIntelligenceRequest

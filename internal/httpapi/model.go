@@ -65,4 +65,5 @@ type Store interface {
 	Create(ctx context.Context, clientID, idempotencyKey string, input RequestInput, correlationID string) (Request, bool, error)
 	Get(ctx context.Context, clientID, requestID string) (Request, error)
 	Cancel(ctx context.Context, clientID, requestID, correlationID string) (Request, error)
+	Ping(ctx context.Context) error
 }
