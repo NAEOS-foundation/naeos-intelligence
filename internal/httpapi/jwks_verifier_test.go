@@ -127,10 +127,30 @@ func TestJWKSVerifierAcceptsAudienceArrayAndRejectsFutureNotBefore(t *testing.T)
 func TestJWKSVerifierRejectsTamperedSignatureAndUnknownKeyID(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil { t.Fatal(err) }
+	const kid = "kid"
+	jwks := map[string]any{
+		"keys": []map[string]string{
+			{
+				"kty": "RSA",
+				"use": "sig",
+				"alg": "RS256",
+				"kid": kid,
+				"n":   base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes()),
+				"e":   base64.RawURLEncoding.EncodeToString([]byte{1, 0, 1}),
+			},
+		},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(jwks)
+	}))
+	defer server.Close()
+
 	verifier := &JWKSVerifier{
-		issuer: "https://issuer.test",
-		audience: "naeos-api",
-		keys: map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		issuer:    "https://issuer.test",
+		audience:  "naeos-api",
+		jwksURL:   server.URL,
+		client:    server.Client(),
+		keys:      map[string]*rsa.PublicKey{kid: &privateKey.PublicKey},
 		fetchedAt: time.Now(),
 	}
 	token := signedTestJWT(t, privateKey, "kid", map[string]any{

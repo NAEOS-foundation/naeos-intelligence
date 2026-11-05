@@ -33,32 +33,32 @@ type JWKSVerifier struct {
 }
 
 type jwksDocument struct {
-	Keys []jwk "json:\"keys\""
+	Keys []jwk `json:"keys"`
 }
 
 type jwk struct {
-	Kty string "json:\"kty\""
-	Use string "json:\"use\""
-	Alg string "json:\"alg\""
-	Kid string "json:\"kid\""
-	N   string "json:\"n\""
-	E   string "json:\"e\""
+	Kty string `json:"kty"`
+	Use string `json:"use"`
+	Alg string `json:"alg"`
+	Kid string `json:"kid"`
+	N   string `json:"n"`
+	E   string `json:"e"`
 }
 
 type jwtHeader struct {
-	Alg string "json:\"alg\""
-	Kid string "json:\"kid\""
+	Alg string `json:"alg"`
+	Kid string `json:"kid"`
 }
 
 type jwtClaims struct {
-	Issuer    string          "json:\"iss\""
-	Subject   string          "json:\"sub\""
-	ClientID  string          "json:\"client_id\""
-	Audience  json.RawMessage "json:\"aud\""
-	Expires   int64           "json:\"exp\""
-	NotBefore int64           "json:\"nbf\""
-	Scope     string          "json:\"scope\""
-	Scopes    []string        "json:\"scopes\""
+	Issuer    string          `json:"iss"`
+	Subject   string          `json:"sub"`
+	ClientID  string          `json:"client_id"`
+	Audience  json.RawMessage `json:"aud"`
+	Expires   int64           `json:"exp"`
+	NotBefore int64           `json:"nbf"`
+	Scope     string          `json:"scope"`
+	Scopes    []string        `json:"scopes"`
 }
 
 func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
@@ -161,7 +161,8 @@ func (v *JWKSVerifier) key(ctx context.Context, kid string) (*rsa.PublicKey, err
 		if key := v.keys[kid]; key != nil {
 			return key, nil
 		}
-		return nil, errors.New("JWT signing key id is not trusted")
+		// An unknown kid can indicate key rotation. Refresh the trusted JWKS
+		// immediately instead of rejecting the token until the cache expires.
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.jwksURL, nil)
 	if err != nil {
