@@ -47,6 +47,11 @@ jobs:
           if-no-files-found: error
       - name: Download modules
         run: go mod download
+      - name: Install govulncheck
+        # Pin the scanner module version to keep CI tool installation reproducible.
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+      - name: Scan Go code for known vulnerabilities
+        run: "$(go env GOPATH)/bin/govulncheck" ./...
       - name: Vet
         run: go vet ./...
       - name: Test
