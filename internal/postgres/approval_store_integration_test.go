@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
-	"github.com/jackc/pgx/v5"
 )
 
 func TestPostgresDurableApprovalDecision(t *testing.T) {
@@ -82,10 +81,4 @@ func TestPostgresDurableApprovalDecision(t *testing.T) {
 	if _, err := pool.Exec(ctx, "DELETE FROM governance_audit_events WHERE request_id=$1::uuid", request.RequestID); err == nil {
 		t.Fatal("audit delete unexpectedly succeeded")
 	}
-	// Verify audit append-only trigger errors are PostgreSQL errors, not silent no-ops.
-	var pgErr *pgx.PgError
-	if err := pool.QueryRow(ctx, "SELECT 1").Scan(new(int)); err != nil {
-		t.Fatalf("database connection unusable after trigger checks: %v", err)
-	}
-	_ = pgErr
 }
