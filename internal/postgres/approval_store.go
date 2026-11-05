@@ -20,6 +20,7 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 	decision = strings.ToLower(strings.TrimSpace(decision))
 	approvedBy = strings.TrimSpace(approvedBy)
 	reason = strings.TrimSpace(reason)
+	correlationID = strings.TrimSpace(correlationID)
 	if clientID == "" || len(clientID) > 255 {
 		return governance.ApprovalDecision{}, errors.New("client ID must contain 1 to 255 characters")
 	}
@@ -60,13 +61,13 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 	}
 
 	var existing governance.ApprovalDecision
-	var existingReason string
-	err = tx.QueryRow(ctx, `SELECT request_id::text, action, execution_mode, decision, approved_by, COALESCE(reason,''), created_at
+	var existingReason, existingCorrelationID string
+	err = tx.QueryRow(ctx, `SELECT request_id::text, action, execution_mode, decision, approved_by, COALESCE(reason,''), COALESCE(correlation_id,''), created_at
 		FROM approval_decisions WHERE client_id=$1 AND request_id=$2::uuid`,
 		clientID, requestID).Scan(&existing.RequestID, &existing.Action, &existing.ExecutionMode,
-		&existing.Decision, &existing.ApprovedBy, &existingReason, &existing.CreatedAt)
+		&existing.Decision, &existing.ApprovedBy, &existingReason, &existingCorrelationID, &existing.CreatedAt)
 	if err == nil {
-		if existing.Decision != decision || existing.ApprovedBy != approvedBy || existingReason != reason {
+		if existing.Decision != decision || existing.ApprovedBy != approvedBy || existingReason != reason || existingCorrelationID != correlationID {
 			return governance.ApprovalDecision{}, httpapi.ErrConflict
 		}
 		if err = tx.Commit(ctx); err != nil {
@@ -89,9 +90,9 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 		return governance.ApprovalDecision{}, err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO approval_decisions
-		(id, request_id, client_id, action, execution_mode, decision, approved_by, reason)
-		VALUES ($1,$2::uuid,$3,$4,'governed',$5,$6,$7)`,
-		decisionID, requestID, clientID, action, decision, approvedBy, nullIfBlank(reason))
+		(id, request_id, client_id, action, execution_mode, decision, approved_by, reason, correlation_id)
+		VALUES ($1,$2::uuid,$3,$4,'governed',$5,$6,$7,$8)`,
+		decisionID, requestID, clientID, action, decision, approvedBy, nullIfBlank(reason), nullIfBlank(correlationID)
 	if err != nil {
 		return governance.ApprovalDecision{}, err
 	}
