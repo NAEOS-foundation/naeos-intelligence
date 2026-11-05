@@ -1,6 +1,6 @@
 # Phase 3 — HTTP API and Request Lifecycle
 
-**Status:** Implementation in progress — draft PR for maintainer review  
+**Status:** M1 implementation evidence substantially complete; formal contract acceptance pending  
 **Phase:** 3  
 **Updated:** 2026-11-05
 
@@ -34,7 +34,7 @@ When all three authentication environment variables are absent, the verifier rem
 - Lifecycle worker/scheduler, durable state-transition history, and cancellation propagation during running work: later runtime phases.
 - Identity-provider client registration/secret lifecycle, JWKS rotation operational validation, and production deployment hardening: Identity & Access implementation.
 - Real lifecycle worker/scheduler, transition history, cancellation propagation during running work: subsequent runtime phases.
-- Rate limiting, concurrency/queue controls, readiness probes, full OpenAPI 3.1 schema validation, and deployment-level auth validation remain outstanding. Structured OpenAPI test coverage was added in PR #34: YAML parsing, operation/security/response assertions, and local reference resolution; this is not a full schema validator.
+- Rate limiting, concurrency/queue controls, readiness probes, and deployment-level auth validation remain outstanding. Structured OpenAPI contract tests were added in PR #34 (YAML parsing, operation/security/response assertions, and local reference resolution); full OpenAPI 3.1 schema validation was added in PR #36 and passed CI run #118.
 - Approval workflow internals remain as non-public prototype scaffolding, but approval HTTP routes are not registered or documented in the MVP API. The MVP does not expose an operational approval workflow, consistent with `docs/vision/PROJECT-SCOPE.md`.
 - No model/tool/policy integration or consequential side-effect execution is introduced through the documented MVP API.
 
@@ -50,5 +50,8 @@ When all three authentication environment variables are absent, the verifier rem
 - [x] Bounded HTTP server timeouts and graceful shutdown.
 - [x] Concrete JWKS verifier wired by environment configuration; JWT verifier tests cover claim validation.
 - [ ] Deployment-level JWKS trust/rotation validation and end-to-end auth contract coverage.
-- [ ] Running lifecycle transitions, cancellation race tests, durable storage and complete OpenAPI schema validation.
-- [x] `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI (latest evidence: PR #34 Go checks).
+- [x] PostgreSQL lifecycle/idempotency integration test execution evidence: CI run #119 configured PostgreSQL 16 with `DATABASE_URL` and `NAEOS_POSTGRES_INTEGRATION=1`; the Go test step passed, including `internal/postgres` (see PR #38 evidence update, still awaiting maintainer acceptance).
+- [x] Concurrent cancellation integration coverage: 12 concurrent cancel calls against the same persisted request assert exactly one `request.cancelled` transition; executed in CI run #119.
+- [x] Full OpenAPI 3.1 schema validation added in PR #36 and passed CI run #118.
+- [ ] Worker-running lifecycle transitions and cancellation propagation remain deferred until the worker/runtime phase; deployment-level IAM/JWKS validation remains pending.
+- [x] `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI run #121 for PR #38 (documentation-only evidence update); PostgreSQL integration suite passed in CI run #119. PR #38 itself remains open pending maintainer contract acceptance and confirmation of any separately configured dependency/security governance gates.
