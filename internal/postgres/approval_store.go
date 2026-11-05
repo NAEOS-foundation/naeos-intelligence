@@ -15,12 +15,11 @@ import (
 // RecordApprovalDecision durably records a governed request decision, updates its
 // lifecycle state, and appends an audit event in a single PostgreSQL transaction.
 // Repeating an identical decision is idempotent; a conflicting repeat is rejected.
-func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID, decision, approvedBy, reason, correlationID string) (governance.ApprovalDecision, error) {
+func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID, decision, approvedBy, reason string) (governance.ApprovalDecision, error) {
 	clientID = strings.TrimSpace(clientID)
 	decision = strings.ToLower(strings.TrimSpace(decision))
 	approvedBy = strings.TrimSpace(approvedBy)
 	reason = strings.TrimSpace(reason)
-	correlationID = strings.TrimSpace(correlationID)
 	if clientID == "" || len(clientID) > 255 {
 		return governance.ApprovalDecision{}, errors.New("client ID must contain 1 to 255 characters")
 	}
@@ -30,8 +29,8 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 	if approvedBy == "" || len(approvedBy) > 255 {
 		return governance.ApprovalDecision{}, errors.New("approved_by must contain 1 to 255 characters")
 	}
-	if len(reason) > 4000 || len(correlationID) > 255 {
-		return governance.ApprovalDecision{}, errors.New("reason or correlation ID exceeds allowed length")
+	if len(reason) > 4000 {
+		return governance.ApprovalDecision{}, errors.New("reason exceeds allowed length")
 	}
 	switch decision {
 	case "approved", "denied", "rejected", "pending":
@@ -61,13 +60,13 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 	}
 
 	var existing governance.ApprovalDecision
-	var existingReason, existingCorrelationID string
-	err = tx.QueryRow(ctx, `SELECT request_id::text, action, execution_mode, decision, approved_by, COALESCE(reason,''), COALESCE(correlation_id,''), created_at
+	var existingReason string
+	err = tx.QueryRow(ctx, `SELECT request_id::text, action, execution_mode, decision, approved_by, COALESCE(reason,''), created_at
 		FROM approval_decisions WHERE client_id=$1 AND request_id=$2::uuid`,
 		clientID, requestID).Scan(&existing.RequestID, &existing.Action, &existing.ExecutionMode,
-		&existing.Decision, &existing.ApprovedBy, &existingReason, &existingCorrelationID, &existing.CreatedAt)
+		&existing.Decision, &existing.ApprovedBy, &existingReason, &existing.CreatedAt)
 	if err == nil {
-		if existing.Decision != decision || existing.ApprovedBy != approvedBy || existingReason != reason || existingCorrelationID != correlationID {
+		if existing.Decision != decision || existing.ApprovedBy != approvedBy || existingReason != reason {
 			return governance.ApprovalDecision{}, httpapi.ErrConflict
 		}
 		if err = tx.Commit(ctx); err != nil {
@@ -90,9 +89,9 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 		return governance.ApprovalDecision{}, err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO approval_decisions
-		(id, request_id, client_id, action, execution_mode, decision, approved_by, reason, correlation_id)
-		VALUES ($1,$2::uuid,$3,$4,'governed',$5,$6,$7,$8)`,
-		decisionID, requestID, clientID, action, decision, approvedBy, nullIfBlank(reason), nullIfBlank(correlationID)
+		(id, request_id, client_id, action, execution_mode, decision, approved_by, reason)
+		VALUES ($1,$2::uuid,$3,$4,'governed',$5,$6,$7)`,
+		decisionID, requestID, clientID, action, decision, approvedBy, nullIfBlank(reason))
 	if err != nil {
 		return governance.ApprovalDecision{}, err
 	}
@@ -118,7 +117,7 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 			(id, request_id, from_status, to_status, event_type, actor_type, actor_id, reason, correlation_id)
 			VALUES ($1,$2::uuid,$3,$4,$5,'human',$6,$7,$8)`,
 			transitionID, requestID, status, nextStatus, eventType, approvedBy,
-			nullIfBlank(reason), nullIfBlank(correlationID))
+			nullIfBlank(reason), nullIfBlank(""))
 		if err != nil {
 			return governance.ApprovalDecision{}, err
 		}
@@ -133,9 +132,9 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID,
 		message += "; reason: " + reason
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO governance_audit_events
-		(id, request_id, client_id, event_type, actor_type, actor_id, message, correlation_id)
-		VALUES ($1,$2::uuid,$3,'approval_decision_recorded','human',$4,$5,$6)`,
-		auditID, requestID, clientID, approvedBy, message, nullIfBlank(correlationID))
+		(id, request_id, client_id, event_type, actor_type, actor_id, message)
+		VALUES ($1,$2::uuid,$3,'approval_decision_recorded','human',$4,$5)`,
+		auditID, requestID, clientID, approvedBy, message)
 	if err != nil {
 		return governance.ApprovalDecision{}, err
 	}

@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -182,8 +181,4 @@ func (s *Store) FinishAttempt(ctx context.Context, requestID string, attemptNumb
 	tag,err:=s.pool.Exec(ctx,`UPDATE request_attempts SET status=$3,finished_at=now(),failure_category=$4,failure_detail=$5
 		WHERE request_id=$1::uuid AND attempt_number=$2 AND status='running'`,requestID,attemptNumber,outcome,nullIfBlank(failureCategory),nullIfBlank(failureDetail))
 	if err!=nil{return err};if tag.RowsAffected()!=1{return httpapi.ErrConflict};return nil
-}
-
-func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID, decision, approvedBy, reason string) (governance.ApprovalDecision, error) {
-	return governance.ApprovalDecision{}, errors.New("durable approval persistence not implemented in postgres store")
 }

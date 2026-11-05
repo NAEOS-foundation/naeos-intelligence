@@ -38,10 +38,10 @@ func TestPostgresDurableApprovalDecision(t *testing.T) {
 		t.Fatalf("create governed request: %v", err)
 	}
 
-	if _, err := store.RecordApprovalDecision(ctx, "other-tenant", request.RequestID, "approved", "reviewer", "ok", "corr-approval"); !errors.Is(err, httpapi.ErrNotFound) {
+	if _, err := store.RecordApprovalDecision(ctx, "other-tenant", request.RequestID, "approved", "reviewer", "ok"); !errors.Is(err, httpapi.ErrNotFound) {
 		t.Fatalf("cross-tenant decision should be not found, got %v", err)
 	}
-	decision, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "approved", "reviewer", "approved for analysis", "corr-approval")
+	decision, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "approved", "reviewer", "approved for analysis")
 	if err != nil {
 		t.Fatalf("record approval: %v", err)
 	}
@@ -53,25 +53,22 @@ func TestPostgresDurableApprovalDecision(t *testing.T) {
 		t.Fatalf("approved request status=%s err=%v, want queued", finalRequest.Status, err)
 	}
 
-	replay, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "approved", "reviewer", "approved for analysis", "corr-approval")
+	replay, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "approved", "reviewer", "approved for analysis")
 	if err != nil || replay.Decision != "approved" {
 		t.Fatalf("identical decision replay=%+v err=%v", replay, err)
 	}
-	if _, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "denied", "reviewer", "changed", "corr-approval"); !errors.Is(err, httpapi.ErrConflict) {
+	if _, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "denied", "reviewer", "changed"); !errors.Is(err, httpapi.ErrConflict) {
 		t.Fatalf("conflicting duplicate should be conflict, got %v", err)
-	}
-	if _, err := store.RecordApprovalDecision(ctx, clientID, request.RequestID, "approved", "reviewer", "approved for analysis", "corr-other"); !errors.Is(err, httpapi.ErrConflict) {
-		t.Fatalf("replay using another correlation ID should be rejected, got %v", err)
 	}
 
 	var approvalCount, auditCount, transitionCount int
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM approval_decisions WHERE request_id=$1::uuid", request.RequestID).Scan(&approvalCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM governance_audit_events WHERE request_id=$1::uuid AND correlation_id='corr-approval'", request.RequestID).Scan(&auditCount); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM governance_audit_events WHERE request_id=$1::uuid", request.RequestID).Scan(&auditCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM request_transitions WHERE request_id=$1::uuid AND to_status='queued' AND correlation_id='corr-approval'", request.RequestID).Scan(&transitionCount); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM request_transitions WHERE request_id=$1::uuid AND to_status='queued'", request.RequestID).Scan(&transitionCount); err != nil {
 		t.Fatal(err)
 	}
 	if approvalCount != 1 || auditCount != 1 || transitionCount != 1 {

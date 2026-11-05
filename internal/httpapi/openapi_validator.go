@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -14,7 +16,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 )
 
-// OpenAPIValidator validates incoming HTTP requests against the OpenAPI 3.1 spec.
+// OpenAPIValidator validates incoming HTTP requests and outgoing responses
+// against the OpenAPI 3.1 spec.
 type OpenAPIValidator struct {
 	router routers.Router
 }
@@ -39,7 +42,8 @@ func NewOpenAPIValidator(specPath string) (*OpenAPIValidator, error) {
 	return &OpenAPIValidator{router: router}, nil
 }
 
-// Middleware returns an HTTP middleware that validates requests against the OpenAPI spec.
+// Middleware returns an HTTP middleware that validates requests and responses
+// against the OpenAPI spec.
 func (v *OpenAPIValidator) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route, pathParams, err := v.router.FindRoute(r)
@@ -72,8 +76,34 @@ func (v *OpenAPIValidator) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// Wrap the response writer to capture status and body for validation.
+		capture := &responseCaptureWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(capture, r)
+
+		// Validate the response body against the OpenAPI schema.
+		// Validation failures are logged but do not alter the client response,
+		// to avoid breaking clients due to server-side validation issues.
+		if err := v.validateResponse(route, capture.status, capture.body.Bytes()); err != nil {
+			log.Printf("OpenAPI response validation failed: %v", err)
+		}
 	})
+}
+
+// responseCaptureWriter wraps http.ResponseWriter to capture status code and body.
+type responseCaptureWriter struct {
+	http.ResponseWriter
+	status int
+	body   bytes.Buffer
+}
+
+func (w *responseCaptureWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *responseCaptureWriter) Write(data []byte) (int, error) {
+	w.body.Write(data)
+	return w.ResponseWriter.Write(data)
 }
 
 // validateBodySizeAndJSON checks that the request body is within the size limit
@@ -112,4 +142,41 @@ func validateBodySizeAndJSON(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	return false
+}
+
+// validateResponse validates the response body against the OpenAPI schema
+// for the given operation and status code.
+func (v *OpenAPIValidator) validateResponse(route *routers.Route, statusCode int, body []byte) error {
+	if route == nil || route.Operation == nil || route.Operation.Responses == nil {
+		return nil
+	}
+
+	// Skip validation for empty bodies (e.g. 204 No Content).
+	if len(strings.TrimSpace(string(body))) == 0 {
+		return nil
+	}
+
+	resp := route.Operation.Responses.Status(statusCode)
+	if resp == nil || resp.Value == nil || resp.Value.Content == nil {
+		resp = route.Operation.Responses.Default()
+	}
+	if resp == nil || resp.Value == nil || resp.Value.Content == nil {
+		return nil
+	}
+
+	mediaType := resp.Value.Content["application/json"]
+	if mediaType == nil || mediaType.Schema == nil || mediaType.Schema.Value == nil {
+		return nil
+	}
+
+	var value any
+	if err := json.Unmarshal(body, &value); err != nil {
+		return fmt.Errorf("decode response body: %w", err)
+	}
+
+	err := mediaType.Schema.Value.VisitJSON(value, openapi3.EnableJSONSchema2020())
+	if err != nil {
+		return fmt.Errorf("response body violates schema: %w", err)
+	}
+	return nil
 }
