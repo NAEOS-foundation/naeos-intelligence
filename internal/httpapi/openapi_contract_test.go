@@ -48,12 +48,12 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"operationId: submitIntelligenceRequest",
 		"\"202\":",
 		"#/components/schemas/Accepted",
-		"\"400\": { $ref: \"#/components/responses/Problem\" }",
-		"\"401\": { $ref: \"#/components/responses/Problem\" }",
-		"\"403\": { $ref: \"#/components/responses/Problem\" }",
-		"\"409\": { $ref: \"#/components/responses/Problem\" }",
-		"\"422\": { $ref: \"#/components/responses/Problem\" }",
-		"\"503\": { $ref: \"#/components/responses/Problem\" }",
+		"\"400\":\n          $ref: \"#/components/responses/Problem\"",
+		"\"401\":\n          $ref: \"#/components/responses/Problem\"",
+		"\"403\":\n          $ref: \"#/components/responses/Problem\"",
+		"\"409\":\n          $ref: \"#/components/responses/Problem\"",
+		"\"422\":\n          $ref: \"#/components/responses/Problem\"",
+		"\"503\":\n          $ref: \"#/components/responses/Problem\"",
 	)
 
 	getRequest := sectionBetween(t, spec, "  /intelligence/requests/{request_id}:\n", "  /intelligence/requests/{request_id}/cancel:\n")
@@ -61,7 +61,7 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"operationId: getIntelligenceRequest",
 		"\"200\":",
 		"#/components/schemas/Request",
-		"\"404\": { $ref: \"#/components/responses/Problem\" }",
+		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
 	)
 
 	cancel := sectionBetween(t, spec, "  /intelligence/requests/{request_id}/cancel:\n", "components:\n")
@@ -69,8 +69,8 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"operationId: cancelIntelligenceRequest",
 		"\"202\":",
 		"#/components/schemas/CancellationAccepted",
-		"\"404\": { $ref: \"#/components/responses/Problem\" }",
-		"\"409\": { $ref: \"#/components/responses/Problem\" }",
+		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
+		"\"409\":\n          $ref: \"#/components/responses/Problem\"",
 	)
 }
 
