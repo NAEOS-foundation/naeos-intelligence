@@ -187,20 +187,21 @@ The initial MVP will not permit autonomous production deployment or unrestricted
 - Establish architecture decision records.
 - Define security and trust requirements.
 
-### Phase 1 — Intelligence Core
+### Phase 1 — API, Persistence, and Governance Foundations
 
-- Bootstrap Go service.
-- Implement API foundation.
-- Implement provider abstraction.
+- Establish the bounded read-only API and lifecycle contract.
+- Implement and validate persistence, ownership isolation, and API error semantics.
+- Resolve required IAM/security decisions through maintainer and security review before provider-specific trust configuration.
+- Implement audit/evidence records appropriate to the read-only MVP.
+- Keep tool execution and approval workflows disabled unless separately accepted.
+
+### Phase 2 — Intelligence Core
+
+- Implement provider abstraction behind explicit interfaces.
 - Implement intent classification.
-- Implement context building.
-- Implement planning and orchestration.
-
-### Phase 2 — Governance and Evidence (later-phase foundation; not MVP execution)
-
-- Define tool registry and authorization boundaries.
-- Specify approval workflows for a separately accepted execution phase.
-- Implement audit and evidence records appropriate to read-only MVP capabilities.
+- Implement context building with source authorization and provenance.
+- Implement planning and orchestration within the read-only MVP boundary.
+- Validate outputs and traceability; model-generated plans remain proposals, not authorization.
 
 ### Phase 3 — NAEOS Integration
 
