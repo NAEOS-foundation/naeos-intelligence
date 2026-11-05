@@ -44,7 +44,8 @@ func NewRegistry() *Registry {
 	return &Registry{providers: make(map[string]Provider)}
 }
 
-// Register adds a provider to the registry.
+// Register adds a provider to the registry. Existing identifiers are rejected
+// to prevent an accidental or unreviewed replacement of a registered provider.
 func (r *Registry) Register(provider Provider) error {
 	if provider == nil {
 		return errors.New("provider is required")
@@ -57,6 +58,9 @@ func (r *Registry) Register(provider Provider) error {
 	id := providerID(provider)
 	if id == "" {
 		return errors.New("provider has no identifier")
+	}
+	if _, exists := r.providers[id]; exists {
+		return fmt.Errorf("provider %q already registered", id)
 	}
 	r.providers[id] = provider
 	return nil
