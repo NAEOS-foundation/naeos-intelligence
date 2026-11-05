@@ -51,9 +51,6 @@ func (p *Processor) Process(requestID, purpose, executionMode string, requiredCa
 	if err != nil {
 		return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: decision.ApprovalRequired, Reason: decision.Reason}, err
 	}
-	if len(requiredCapabilities) == 0 {
-		return Result{RequestID: cleanRequestID, Allowed: true, ApprovalRequired: false, Reason: decision.Reason}, nil
-	}
 	if p == nil || p.Registry == nil {
 		return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: false, Reason: "provider registry is not configured"}, fmt.Errorf("provider registry is not configured")
 	}

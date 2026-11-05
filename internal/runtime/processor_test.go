@@ -75,6 +75,26 @@ func TestProcessorGenerateUsesSelectedProvider(t *testing.T) {
 	}
 }
 
+func TestProcessorSelectsDeterministicProviderWithoutRequiredCapabilities(t *testing.T) {
+	registry := model.NewRegistry()
+	for _, id := range []string{"provider-z", "provider-a"} {
+		if err := registry.Register(&testProvider{id: id, active: true}); err != nil {
+			t.Fatalf("register %s: %v", id, err)
+		}
+	}
+	processor := NewProcessor(registry)
+	result, err := processor.Process("req-201", "analyze context", "analysis_only", nil)
+	if err != nil {
+		t.Fatalf("process error: %v", err)
+	}
+	if !result.Allowed {
+		t.Fatal("request with no required capabilities should be allowed when an enabled provider exists")
+	}
+	if result.ProviderID != "provider-a" {
+		t.Fatalf("provider_id=%q, want deterministic first provider provider-a", result.ProviderID)
+	}
+}
+
 type testProvider struct {
 	id           string
 	active       bool
