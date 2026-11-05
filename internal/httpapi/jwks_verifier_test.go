@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -93,6 +94,61 @@ func TestNewJWKSVerifierRequiresHTTPSAndCompleteConfig(t *testing.T) {
 	}
 	if _, err := NewJWKSVerifier("https://issuer", "", "https://jwks"); err == nil {
 		t.Fatal("incomplete verifier configuration must be rejected")
+	}
+}
+
+
+func TestJWKSVerifierAcceptsAudienceArrayAndRejectsFutureNotBefore(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil { t.Fatal(err) }
+	verifier := &JWKSVerifier{
+		issuer: "https://issuer.test",
+		audience: "naeos-api",
+		keys: map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		fetchedAt: time.Now(),
+	}
+	now := time.Now().Unix()
+	valid := signedTestJWT(t, privateKey, "kid", map[string]any{
+		"iss": verifier.issuer, "aud": []string{"other-api", verifier.audience},
+		"sub": "svc-test", "exp": now + 300, "nbf": now - 1,
+	})
+	if _, err := verifier.Verify(context.Background(), valid); err != nil {
+		t.Fatalf("JWT with matching audience in array should be accepted: %v", err)
+	}
+	future := signedTestJWT(t, privateKey, "kid", map[string]any{
+		"iss": verifier.issuer, "aud": verifier.audience,
+		"sub": "svc-test", "exp": now + 300, "nbf": now + 60,
+	})
+	if _, err := verifier.Verify(context.Background(), future); err == nil {
+		t.Fatal("JWT with future not-before must be rejected")
+	}
+}
+
+func TestJWKSVerifierRejectsTamperedSignatureAndUnknownKeyID(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil { t.Fatal(err) }
+	verifier := &JWKSVerifier{
+		issuer: "https://issuer.test",
+		audience: "naeos-api",
+		keys: map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		fetchedAt: time.Now(),
+	}
+	token := signedTestJWT(t, privateKey, "kid", map[string]any{
+		"iss": verifier.issuer, "aud": verifier.audience,
+		"sub": "svc-test", "exp": time.Now().Unix() + 300,
+	})
+	parts := strings.Split(token, ".")
+	parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"https://issuer.test","aud":"naeos-api","sub":"attacker","exp":9999999999}`))
+	tampered := strings.Join(parts, ".")
+	if _, err := verifier.Verify(context.Background(), tampered); err == nil {
+		t.Fatal("JWT with tampered claims and original signature must be rejected")
+	}
+	unknown := signedTestJWT(t, privateKey, "unknown-kid", map[string]any{
+		"iss": verifier.issuer, "aud": verifier.audience,
+		"sub": "svc-test", "exp": time.Now().Unix() + 300,
+	})
+	if _, err := verifier.Verify(context.Background(), unknown); err == nil {
+		t.Fatal("JWT with untrusted key id must be rejected")
 	}
 }
 
