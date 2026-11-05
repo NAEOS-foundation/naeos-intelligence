@@ -3,7 +3,7 @@
 **Status:** Proposed execution roadmap  
 **Target:** Bounded, read-only Engineering Intelligence Early Access  
 **Planning horizon:** Indicative 6–8 weeks; estimates depend on acceptance decisions, CI feedback, and scope  
-**Last reviewed:** 2026-11-04
+**Last reviewed:** 2026-11-05
 
 ## Objective
 
@@ -20,14 +20,14 @@ This is a plan, not evidence of completion or production readiness. Existing imp
 - Any future execution capability requires a separately scoped design, authorization model, approval, security review, and acceptance.
 - Production rollout is not implied by completing this roadmap; it requires operational approval and release evidence.
 
-## Execution Snapshot (2026-11-04)
+## Execution Snapshot (2026-11-05)
 
 This snapshot tracks repository work, not milestone acceptance or Early Access approval.
 
 | Milestone | Current status | Evidence / remaining gate |
 |---|---|---|
 | M0 — Documentation and Acceptance Alignment | Baseline documentation reconciliation completed; formal spec acceptance remains open | PR #23 aligned target lifecycle with MVP scope, completed normalized error properties/mapping, and clarified JWT/JWKS implementation versus deployment IAM decisions. The specifications remain Draft/Proposed until maintainer acceptance. |
-| M1 — API Contract and Lifecycle Reliability | In progress | PR #24 merged normalized public error codes and problem-envelope correlation tests; PR #25 merged metadata bounds and response-schema alignment; PR #26 merged HTTP ownership isolation, client-scoped idempotency, and terminal cancellation conflict tests; PR #28 merged lightweight OpenAPI operation/schema contract-fragment tests (standard-library only). Remaining: deeper lifecycle/cancellation race validation and formal acceptance of the API/lifecycle contract. |
+| M1 — API Contract and Lifecycle Reliability | Implementation evidence substantially complete; formal acceptance pending | PRs #24–#28 delivered error, metadata, ownership/idempotency, and initial OpenAPI contract coverage; PR #34 added structured OpenAPI validation, PR #36 added full OpenAPI 3.1 schema validation (CI run #118 passed), and PR #37 documented review evidence. PostgreSQL 16 lifecycle/idempotency integration tests—including 12-way concurrent cancellation with exactly one transition—executed successfully in CI run #119. PR #38 records that database execution evidence and its CI run #121 passed; PR #38 remains open pending maintainer contract acceptance and confirmation of separately configured dependency/security governance gates. Consumer compatibility approval and deployment-level IAM/JWKS validation remain open; worker-running cancellation behavior is deferred to M3. |
 | M2 — IAM Decision and Security Hardening | Blocked on explicit IAM decisions / not started | IAM-01 through IAM-14 remain owner/security decisions. No production IAM acceptance is inferred. |
 | M3 — Runtime and Worker Foundation | Not started | Requires accepted lifecycle/API contracts and approved scope. |
 | M4 — Policy and Governance Enforcement | Not started | Requires accepted policy/IAM decisions; no side-effect execution enabled. |
@@ -35,10 +35,10 @@ This snapshot tracks repository work, not milestone acceptance or Early Access a
 
 ### Immediate next work
 
-1. Continue M1 by adding automated OpenAPI contract conformance checks against HTTP handlers and response schemas.
-2. Add focused cancellation/state-race coverage where the current MVP behavior supports it; keep worker-runtime cases deferred until M3.
-3. Prepare the IAM decision review packet; do not resolve IAM worksheet items without the designated owner/security decision.
-4. Update this snapshot after merged work and milestone exit reviews.
+1. Complete formal M1 API/lifecycle contract review and record maintainer acceptance; confirm consumer compatibility review and any separately configured dependency/security governance results.
+2. Keep deployment-level IAM/JWKS validation and IAM-01 through IAM-14 owner/security decisions as explicit M2 blockers.
+3. Defer worker-running lifecycle/cancellation propagation tests until M3; do not treat current accepted/cancelled PostgreSQL integration coverage as worker-runtime evidence.
+4. Refresh this snapshot after PR #38 and subsequent reviewed changes merge; do not claim milestone acceptance from CI success alone.
 
 ## Milestones
 
@@ -145,8 +145,8 @@ Milestones may overlap only where their inputs are accepted and no dependency or
 
 ## Immediate execution queue
 
-1. Complete M0 contract alignment: lifecycle states/transitions and normalized error specification.
-2. Turn accepted M0 outcomes into M1 contract and lifecycle tests.
+1. Record M0/M1 specification and contract acceptance decisions from designated maintainers; keep Draft/Proposed status until accepted.
+2. Confirm M1 consumer compatibility and all required governance gates; PR #38 documents the current CI evidence but remains pending review.
 3. Close IAM worksheet blockers before enabling stronger deployment claims or extending access.
 4. Proceed milestone-by-milestone; re-assess scope and readiness after each exit review.
 
