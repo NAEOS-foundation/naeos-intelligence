@@ -69,7 +69,7 @@ paths:
           description: UNPROCESSABLE_REQUEST — request violates semantic validation or policy constraints
         "503":
           $ref: "#/components/responses/Problem"
-          description: SERVICE_UNAVAILABLE — service dependency is temporarily unavailable; implementation mapping requires validation
+          description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
   /intelligence/requests/{request_id}:
     parameters:
       - $ref: "#/components/parameters/RequestIDPath"
@@ -95,7 +95,7 @@ paths:
           description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
         "503":
           $ref: "#/components/responses/Problem"
-          description: SERVICE_UNAVAILABLE — service dependency is temporarily unavailable; implementation mapping requires validation
+          description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
   /intelligence/requests/{request_id}/cancel:
     parameters:
       - $ref: "#/components/parameters/RequestIDPath"
@@ -126,7 +126,7 @@ paths:
           description: CONFLICT — request is not cancellable in its current lifecycle state
         "503":
           $ref: "#/components/responses/Problem"
-          description: SERVICE_UNAVAILABLE — service dependency is temporarily unavailable; implementation mapping requires validation
+          description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
 components:
   securitySchemes:
     bearerAuth:
