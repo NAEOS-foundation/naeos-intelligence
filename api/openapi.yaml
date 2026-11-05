@@ -24,6 +24,9 @@ paths:
                 required: [status]
                 properties:
                   status: { type: string, const: healthy }
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — store is not reachable
   /ready:
     get:
       operationId: getReady
@@ -86,6 +89,9 @@ paths:
         "422":
           $ref: "#/components/responses/Problem"
           description: UNPROCESSABLE_REQUEST — request violates semantic validation or policy constraints
+        "429":
+          $ref: "#/components/responses/Problem"
+          description: RATE_LIMITED — too many requests; please slow down
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
@@ -112,6 +118,9 @@ paths:
         "404":
           $ref: "#/components/responses/Problem"
           description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "429":
+          $ref: "#/components/responses/Problem"
+          description: RATE_LIMITED — too many requests; please slow down
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
@@ -143,6 +152,9 @@ paths:
         "409":
           $ref: "#/components/responses/Problem"
           description: CONFLICT — request is not cancellable in its current lifecycle state
+        "429":
+          $ref: "#/components/responses/Problem"
+          description: RATE_LIMITED — too many requests; please slow down
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
@@ -175,6 +187,9 @@ paths:
         "404":
           $ref: "#/components/responses/Problem"
           description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "429":
+          $ref: "#/components/responses/Problem"
+          description: RATE_LIMITED — too many requests; please slow down
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed

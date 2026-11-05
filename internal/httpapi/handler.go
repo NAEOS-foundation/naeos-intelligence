@@ -42,6 +42,10 @@ func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter) htt
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	if err := h.store.Ping(r.Context()); err != nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Store is not healthy")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "healthy"})
 }
 

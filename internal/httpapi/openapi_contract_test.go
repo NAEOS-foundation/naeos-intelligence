@@ -80,6 +80,13 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"\"503\":\n          $ref: \"#/components/responses/Problem\"",
 	)
 
+	health := sectionBetween(t, spec, "  /health:\n", "  /ready:\n")
+	assertOpenAPIContains(t, health,
+		"operationId: getHealth",
+		"\"200\":",
+		"\"503\":\n          $ref: \"#/components/responses/Problem\"",
+	)
+
 	approval := sectionBetween(t, spec, "  /intelligence/requests/{request_id}/approval:\n", "components:\n")
 	assertOpenAPIContains(t, approval,
 		"operationId: recordApprovalDecision",
