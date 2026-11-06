@@ -193,6 +193,41 @@ paths:
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
+  /intelligence/requests/{request_id}/analyze:
+    parameters:
+      - $ref: "#/components/parameters/RequestIDPath"
+    post:
+      operationId: analyzeIntelligenceRequest
+      summary: Run read-only intelligence analysis pipeline on an accepted request
+      security:
+        - bearerAuth: [intelligence:read]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeInput"
+      responses:
+        "200":
+          description: Intelligence analysis result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyzeResponse" }
+        "401":
+          $ref: "#/components/responses/Problem"
+          description: UNAUTHENTICATED — missing or invalid credentials
+        "403":
+          $ref: "#/components/responses/Problem"
+          description: FORBIDDEN — authenticated client lacks the required scope
+        "404":
+          $ref: "#/components/responses/Problem"
+          description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "429":
+          $ref: "#/components/responses/Problem"
+          description: RATE_LIMITED — too many requests; please slow down
+        "503":
+          $ref: "#/components/responses/Problem"
+          description: SERVICE_UNAVAILABLE — intelligence pipeline is not configured or store is unreachable
 components:
   securitySchemes:
     bearerAuth:
@@ -305,6 +340,71 @@ components:
         reason: { type: string, maxLength: 1000 }
         approval_required: { type: boolean }
         created_at: { type: string, format: date-time }
+    AnalyzeInput:
+      type: object
+      additionalProperties: false
+      properties:
+        desired_outputs:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 128 }
+    AnalyzeResponse:
+      type: object
+      additionalProperties: false
+      required: [request_id, intent, plan, runtime_result, policy_decision, provenance, created_at]
+      properties:
+        request_id: { type: string }
+        intent: { type: string }
+        plan: { $ref: "#/components/schemas/Plan" }
+        runtime_result: { $ref: "#/components/schemas/RuntimeResult" }
+        policy_decision: { $ref: "#/components/schemas/PolicyDecision" }
+        provenance: { type: string }
+        created_at: { type: string, format: date-time }
+    Plan:
+      type: object
+      additionalProperties: false
+      required: [request_id, intent, tasks, summary, provenance, created_at]
+      properties:
+        request_id: { type: string }
+        intent: { type: string }
+        tasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+        summary: { type: string }
+        provenance: { type: string }
+        created_at: { type: string, format: date-time }
+    Task:
+      type: object
+      additionalProperties: false
+      required: [id, title, description, depends_on, priority, estimated_minutes, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        depends_on:
+          type: array
+          items: { type: string }
+        priority: { type: integer, minimum: 1 }
+        estimated_minutes: { type: integer, minimum: 0 }
+        status: { type: string, const: proposed }
+    RuntimeResult:
+      type: object
+      additionalProperties: false
+      required: [request_id, allowed, approval_required]
+      properties:
+        request_id: { type: string }
+        provider_id: { type: string }
+        allowed: { type: boolean }
+        approval_required: { type: boolean }
+        reason: { type: string }
+    PolicyDecision:
+      type: object
+      additionalProperties: false
+      required: [allowed, approval_required]
+      properties:
+        allowed: { type: boolean }
+        approval_required: { type: boolean }
+        reason: { type: string }
     Status:
       type: string
       enum: [accepted, queued, running, completed, failed, cancelled, requires_approval]

@@ -13,20 +13,20 @@ import (
 
 // TokenBucket is a concurrency-safe token bucket rate limiter.
 type TokenBucket struct {
-	mu      sync.Mutex
-	tokens  float64
-	rate    float64 // tokens per second
+	mu       sync.Mutex
+	tokens   float64
+	rate     float64 // tokens per second
 	capacity float64
-	last    time.Time
+	last     time.Time
 }
 
 // NewTokenBucket creates a token bucket with the given rate (tokens/sec) and burst capacity.
 func NewTokenBucket(rate float64, burst int) *TokenBucket {
 	return &TokenBucket{
-		tokens:    float64(burst),
-		rate:      rate,
-		capacity:  float64(burst),
-		last:      time.Now(),
+		tokens:   float64(burst),
+		rate:     rate,
+		capacity: float64(burst),
+		last:     time.Now(),
 	}
 }
 

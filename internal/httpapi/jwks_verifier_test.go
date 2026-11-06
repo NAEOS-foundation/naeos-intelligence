@@ -97,14 +97,15 @@ func TestNewJWKSVerifierRequiresHTTPSAndCompleteConfig(t *testing.T) {
 	}
 }
 
-
 func TestJWKSVerifierAcceptsAudienceArrayAndRejectsFutureNotBefore(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	verifier := &JWKSVerifier{
-		issuer: "https://issuer.test",
-		audience: "naeos-api",
-		keys: map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		issuer:    "https://issuer.test",
+		audience:  "naeos-api",
+		keys:      map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
 		fetchedAt: time.Now(),
 	}
 	now := time.Now().Unix()
@@ -126,7 +127,9 @@ func TestJWKSVerifierAcceptsAudienceArrayAndRejectsFutureNotBefore(t *testing.T)
 
 func TestJWKSVerifierRejectsTamperedSignatureAndUnknownKeyID(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	const kid = "kid"
 	jwks := map[string]any{
 		"keys": []map[string]string{
@@ -193,16 +196,15 @@ func signedTestJWT(t *testing.T, key *rsa.PrivateKey, kid string, claims any) st
 	return fmt.Sprintf("%s.%s", signingInput, base64.RawURLEncoding.EncodeToString(signature))
 }
 
-
 func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
 	verifier := &JWKSVerifier{
-		issuer:   "https://issuer.test",
-		audience: "naeos-api",
-		keys:     map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		issuer:    "https://issuer.test",
+		audience:  "naeos-api",
+		keys:      map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
 		fetchedAt: time.Now(),
 	}
 	base := map[string]any{

@@ -36,7 +36,7 @@ func TestOpenAPISpecIsStructuredAndReferencesResolve(t *testing.T) {
 	paths := mapping(t, document["paths"], "paths")
 	operations := []struct {
 		path, method, operationID, scope string
-		responses                       []string
+		responses                        []string
 	}{
 		{"/health", "get", "getHealth", "", []string{"200"}},
 		{"/intelligence/requests", "post", "submitIntelligenceRequest", "intelligence:write", []string{"202", "400", "401", "403", "409", "413", "422", "503"}},

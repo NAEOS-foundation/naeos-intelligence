@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/jackc/pgx/v5"
 )
 

@@ -23,21 +23,21 @@ const (
 
 // Provider is an OpenAI-compatible model provider adapter.
 type Provider struct {
-	client   *http.Client
-	baseURL  string
-	apiKey   string
-	model    string
-	enabled  bool
-	caps     []string
+	client  *http.Client
+	baseURL string
+	apiKey  string
+	model   string
+	enabled bool
+	caps    []string
 }
 
 // chatRequest is the OpenAI chat completions request body.
 type chatRequest struct {
-	Model    string    `json:"model"`
-	Messages []message `json:"messages"`
-	Temperature float64 `json:"temperature,omitempty"`
-	MaxTokens int     `json:"max_tokens,omitempty"`
-	Stream    bool    `json:"stream"`
+	Model       string    `json:"model"`
+	Messages    []message `json:"messages"`
+	Temperature float64   `json:"temperature,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Stream      bool      `json:"stream"`
 }
 
 // message is a single chat message.
@@ -58,9 +58,9 @@ type chatResponse struct {
 
 // choice is a single completion choice.
 type choice struct {
-	Index   int     `json:"index"`
-	Message message `json:"message"`
-	FinishReason string `json:"finish_reason"`
+	Index        int     `json:"index"`
+	Message      message `json:"message"`
+	FinishReason string  `json:"finish_reason"`
 }
 
 // usage is token usage information.
@@ -111,12 +111,12 @@ func (p *Provider) ID() string { return "openai" }
 // call WithEnabled(true) or set the API key explicitly to enable it.
 func New(apiKey string, opts ...Option) *Provider {
 	p := &Provider{
-		client:   &http.Client{Timeout: 30 * time.Second},
-		baseURL:  defaultBaseURL,
-		apiKey:   apiKey,
-		model:    defaultModel,
-		enabled:  apiKey != "",
-		caps:     []string{"chat", "completion"},
+		client:  &http.Client{Timeout: 30 * time.Second},
+		baseURL: defaultBaseURL,
+		apiKey:  apiKey,
+		model:   defaultModel,
+		enabled: apiKey != "",
+		caps:    []string{"chat", "completion"},
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -146,9 +146,9 @@ func (p *Provider) Generate(ctx context.Context, req model.Request) (model.Respo
 	}
 
 	body := chatRequest{
-		Model:     modelID,
-		Messages:  []message{{Role: "user", Content: req.Prompt}},
-		Stream:    false,
+		Model:    modelID,
+		Messages: []message{{Role: "user", Content: req.Prompt}},
+		Stream:   false,
 	}
 	if v, ok := req.Metadata["temperature"]; ok {
 		fmt.Sscanf(v, "%f", &body.Temperature)

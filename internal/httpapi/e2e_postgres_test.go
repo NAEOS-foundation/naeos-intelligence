@@ -11,8 +11,14 @@ import (
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
+	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/orchestrator"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/planner"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
 )
 
 type e2eFakeVerifier struct {
@@ -57,7 +63,24 @@ func e2ePostgresHandler(t *testing.T, ctx context.Context) (http.Handler, *postg
 		ClientID: "e2e-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator()), store
+	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), nil), store
+}
+
+func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http.Handler, *postgres.Store) {
+	t.Helper()
+	store := e2ePostgresStore(t, ctx)
+	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
+		ClientID: "e2e-client",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}}}
+	cl := classifier.NewRuleClassifier()
+	cb := intctx.NewRuleBuilder()
+	pl := planner.NewRulePlanner()
+	reg := model.NewRegistry()
+	_ = reg.Register(&mockProvider{id: "e2e-provider"})
+	rp := runtime.NewProcessor(reg)
+	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
+	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), orch), store
 }
 
 func TestE2EPostgresSubmitGetCancel(t *testing.T) {
@@ -159,8 +182,8 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 		ClientID: "client-b",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
-	hA := httpapi.NewHandler(store, authA, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator())
-	hB := httpapi.NewHandler(store, authB, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator())
+	hA := httpapi.NewHandler(store, authA, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), nil)
+	hB := httpapi.NewHandler(store, authB, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), nil)
 
 	// Submit as client-a
 	body := `{"purpose":"cross client isolation","execution_mode":"analysis_only"}`
@@ -193,3 +216,83 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 		t.Fatalf("owner get status=%d, want 200: %s", getRecA.Code, getRecA.Body.String())
 	}
 }
+
+func TestE2EPostgresAnalyze(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	h, _ := e2ePostgresHandlerWithOrchestrator(t, ctx)
+
+	// Submit a request
+	body := `{"purpose":"Analyze repository architecture and technical debt","execution_mode":"analysis_only","context_sources":[{"type":"repository","reference":"github.com/owner/repo"}],"desired_outputs":["risk_summary"]}`
+	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReq.Header.Set("Authorization", "Bearer fake")
+	submitReq.Header.Set("Idempotency-Key", "e2e-analyze-idem-1")
+	submitRec := httptest.NewRecorder()
+	h.ServeHTTP(submitRec, submitReq)
+	if submitRec.Code != http.StatusAccepted {
+		t.Fatalf("submit status=%d, want 202: %s", submitRec.Code, submitRec.Body.String())
+	}
+	var accepted httpapi.Accepted
+	if err := json.Unmarshal(submitRec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted: %v", err)
+	}
+	if accepted.RequestID == "" {
+		t.Fatal("expected request_id in accepted response")
+	}
+
+	// Run analyze
+	analyzeReq := httptest.NewRequest(http.MethodPost, accepted.StatusURL+"/analyze", strings.NewReader(`{}`))
+	analyzeReq.Header.Set("Authorization", "Bearer fake")
+	analyzeRec := httptest.NewRecorder()
+	h.ServeHTTP(analyzeRec, analyzeReq)
+	if analyzeRec.Code != http.StatusOK {
+		t.Fatalf("analyze status=%d, want 200: %s", analyzeRec.Code, analyzeRec.Body.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(analyzeRec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode analyze result: %v", err)
+	}
+	if result["intent"] != "repository_analysis" {
+		t.Errorf("intent=%v, want repository_analysis", result["intent"])
+	}
+	if result["request_id"] != accepted.RequestID {
+		t.Errorf("request_id=%v, want %s", result["request_id"], accepted.RequestID)
+	}
+	plan, ok := result["plan"].(map[string]any)
+	if !ok {
+		t.Fatalf("plan not found in response: %v", result["plan"])
+	}
+	tasks, ok := plan["tasks"].([]any)
+	if !ok || len(tasks) == 0 {
+		t.Fatalf("plan.tasks missing or empty: %v", plan["tasks"])
+	}
+	runtimeResult, ok := result["runtime_result"].(map[string]any)
+	if !ok {
+		t.Fatalf("runtime_result not found in response: %v", result["runtime_result"])
+	}
+	if runtimeResult["allowed"] != true {
+		t.Errorf("runtime_result.allowed=%v, want true", runtimeResult["allowed"])
+	}
+	policyDecision, ok := result["policy_decision"].(map[string]any)
+	if !ok {
+		t.Fatalf("policy_decision not found in response: %v", result["policy_decision"])
+	}
+	if policyDecision["allowed"] != true {
+		t.Errorf("policy_decision.allowed=%v, want true", policyDecision["allowed"])
+	}
+	if _, ok := result["provenance"].(string); !ok {
+		t.Errorf("provenance missing or not a string: %v", result["provenance"])
+	}
+}
+
+type mockProvider struct {
+	id string
+}
+
+func (m *mockProvider) ID() string { return m.id }
+func (m *mockProvider) Generate(context.Context, model.Request) (model.Response, error) {
+	return model.Response{ModelID: m.id, Text: "fake"}, nil
+}
+func (m *mockProvider) HealthCheck(context.Context) error { return nil }
+func (m *mockProvider) Capabilities() []string            { return []string{"text"} }

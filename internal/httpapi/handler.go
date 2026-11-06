@@ -10,27 +10,34 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
+	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/orchestrator"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/planner"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	policy "github.com/NAEOS-foundation/naeos-intelligence/internal/policy"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
 )
 
 var correlationPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 var errPayloadTooLarge = errors.New("request body exceeds 1 MiB")
 
 type Handler struct {
-	store Store
-	auth  Authenticator
-	mux   *http.ServeMux
+	store        Store
+	auth         Authenticator
+	mux          *http.ServeMux
+	orchestrator *orchestrator.Orchestrator
 }
 
-func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter, validator *OpenAPIValidator) http.Handler {
-	h := &Handler{store: store, auth: auth, mux: http.NewServeMux()}
+func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter, validator *OpenAPIValidator, orch *orchestrator.Orchestrator) http.Handler {
+	h := &Handler{store: store, auth: auth, mux: http.NewServeMux(), orchestrator: orch}
 	h.mux.HandleFunc("GET /api/v1/health", h.health)
 	h.mux.HandleFunc("GET /api/v1/ready", h.ready)
 	h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))
 	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}", auth.Middleware("intelligence:read", http.HandlerFunc(h.get)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:write", http.HandlerFunc(h.approve)))
+	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/analyze", auth.Middleware("intelligence:read", http.HandlerFunc(h.analyze)))
 
 	var wrapped http.Handler = h.mux
 	if validator != nil {
@@ -190,6 +197,79 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		ApprovalRequired: decision.ApprovalRequired,
 		CreatedAt:        decision.CreatedAt,
 	})
+}
+
+func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
+	p, ok := principalFrom(r.Context())
+	if !ok {
+		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
+		return
+	}
+	if h.orchestrator == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Intelligence pipeline is not configured")
+		return
+	}
+	req, err := h.store.Get(r.Context(), p.ClientID, r.PathValue("request_id"))
+	if errors.Is(err, ErrNotFound) {
+		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
+		return
+	}
+	if err != nil {
+		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Request could not be retrieved")
+		return
+	}
+
+	var input AnalyzeInput
+	if err := decodeBody(w, r, &input); err != nil {
+		status := http.StatusBadRequest
+		code := "INVALID_REQUEST"
+		if errors.Is(err, errPayloadTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+			code = "PAYLOAD_TOO_LARGE"
+		}
+		writeProblem(w, r, status, code, err.Error())
+		return
+	}
+
+	desiredOutputs := input.DesiredOutputs
+	if len(desiredOutputs) == 0 {
+		desiredOutputs = req.Input.DesiredOutputs
+	}
+
+	var contextInputs []intctx.SourceInput
+	for _, s := range req.Input.ContextSources {
+		contextInputs = append(contextInputs, intctx.SourceInput{Type: s.Type, Reference: s.Reference})
+	}
+
+	result, err := h.orchestrator.Run(r.Context(), req.RequestID, req.Purpose, req.ExecutionMode, contextInputs, desiredOutputs, model.Request{}, nil)
+	if err != nil {
+		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Intelligence analysis could not be completed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, AnalyzeResponse{
+		RequestID:      result.RequestID,
+		Intent:         string(result.Intent),
+		Plan:           result.Plan,
+		RuntimeResult:  result.RuntimeResult,
+		PolicyDecision: result.PolicyDecision,
+		Provenance:     result.Provenance,
+		CreatedAt:      result.CreatedAt,
+	})
+}
+
+type AnalyzeInput struct {
+	DesiredOutputs []string `json:"desired_outputs,omitempty"`
+}
+
+type AnalyzeResponse struct {
+	RequestID      string          `json:"request_id"`
+	Intent         string          `json:"intent"`
+	Plan           planner.Plan    `json:"plan"`
+	RuntimeResult  runtime.Result  `json:"runtime_result"`
+	PolicyDecision policy.Decision `json:"policy_decision"`
+	Provenance     string          `json:"provenance"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 func validateApprovalDecision(in ApprovalDecisionInput) error {
