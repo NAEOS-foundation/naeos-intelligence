@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: naeos-postgres
+    environment:
+      POSTGRES_USER: naeos
+      POSTGRES_PASSWORD: naeos
+      POSTGRES_DB: naeos_intelligence_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - naeos-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U naeos -d naeos_intelligence_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  naeos-intelligence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: naeos-intelligence
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://naeos:naeos@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      NAEOS_INTELLIGENCE_HTTP_ADDR: 0.0.0.0:8080
+      NAEOS_INTELLIGENCE_APP_ENVIRONMENT: development
+      NAEOS_INTELLIGENCE_APP_LOG_LEVEL: debug
+      NAEOS_INTELLIGENCE_RATE_LIMIT_RATE: 10
+      NAEOS_INTELLIGENCE_RATE_LIMIT_BURST: 20
+      NAEOS_OPENAPI_SPEC_PATH: /app/api/openapi.yaml
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./api:/app/api:ro
+    restart: unless-stopped
+
+  naeos-intelligence-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: naeos-intelligence-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://naeos:naeos@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      MIGRATIONS_DIR: /app/migrations
+    entrypoint: ["/bin/naeos-intelligence-migrate"]
+    volumes:
+      - ./migrations:/app/migrations:ro
+
+volumes:
+  naeos-postgres-data:
