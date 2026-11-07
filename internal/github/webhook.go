@@ -21,6 +21,10 @@ var errMissingSignature = errors.New("github: missing X-Hub-Signature-256 header
 
 // errMissingEvent is returned when the X-GitHub-Event header is absent.
 var errMissingEvent = errors.New("github: missing X-GitHub-Event header")
+var errMissingSecret = errors.New("github: webhook secret is not configured")
+var errPayloadTooLarge = errors.New("github: webhook payload exceeds 1 MiB")
+
+const maxWebhookPayloadBytes = 1 << 20
 
 // WebhookValidator validates GitHub webhook signatures and extracts the event type.
 type WebhookValidator struct {
@@ -35,10 +39,16 @@ func NewWebhookValidator(secret string) *WebhookValidator {
 // Validate checks the signature header against the body and returns the event type.
 // The body is consumed and returned so callers can re-read it.
 func (v *WebhookValidator) Validate(r *http.Request) (eventType string, body []byte, err error) {
+	if len(v.secret) == 0 {
+		return "", nil, errMissingSecret
+	}
 	if r.Body == nil {
 		return "", nil, errors.New("github: request body is nil")
 	}
-	body, err = io.ReadAll(r.Body)
+	body, err = io.ReadAll(io.LimitReader(r.Body, maxWebhookPayloadBytes+1))
+	if err == nil && len(body) > maxWebhookPayloadBytes {
+		return "", nil, errPayloadTooLarge
+	}
 	if err != nil {
 		return "", nil, fmt.Errorf("read webhook body: %w", err)
 	}
