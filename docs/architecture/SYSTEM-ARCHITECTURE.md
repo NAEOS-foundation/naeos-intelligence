@@ -1,8 +1,8 @@
 # NAEOS Intelligence — System Architecture
 
 **Document ID:** NAEOS-INT-ARCH-001  
-**Version:** 0.1.0  
-**Status:** Draft Proposed  
+**Version:** 1.0.0  
+**Status:** Accepted  
 **Audience:** Maintainers, architects, contributors, and security reviewers
 
 ---

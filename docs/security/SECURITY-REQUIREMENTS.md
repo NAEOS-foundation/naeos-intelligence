@@ -1,8 +1,8 @@
 # NAEOS Intelligence — Security Requirements
 
 **Document ID:** NAEOS-INT-SEC-002  
-**Version:** 0.1.0  
-**Status:** Draft Proposed  
+**Version:** 1.0.0  
+**Status:** Accepted  
 **Audience:** Maintainers, architects, developers, security reviewers, and QA engineers
 
 ---

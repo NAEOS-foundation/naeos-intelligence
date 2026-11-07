@@ -1,8 +1,8 @@
 # NAEOS Intelligence — Project Scope
 
 **Document ID:** NAEOS-INT-SCOPE-001  
-**Version:** 0.1.0  
-**Status:** Draft Proposed  
+**Version:** 1.0.0  
+**Status:** Accepted  
 **Audience:** Maintainers, contributors, architects, and strategic partners
 
 ---
