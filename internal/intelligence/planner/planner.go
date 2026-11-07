@@ -10,6 +10,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/util"
 )
 
 // Task is a single proposed execution step. Status is always proposed; plans
@@ -87,7 +88,7 @@ func (p *RulePlanner) Plan(ctx context.Context, requestID string, intent classif
 		Intent:     intent,
 		Tasks:      tasks,
 		Summary:    summary,
-		Provenance: "rule-based planning engine; tasks=" + itoa(len(tasks)),
+		Provenance: "rule-based planning engine; tasks=" + util.Itoa(len(tasks)),
 		CreatedAt:  time.Now().UTC(),
 	}, nil
 }
@@ -157,20 +158,4 @@ func unknownIntentTasks(requestID string, c *intctx.Context) ([]Task, string) {
 
 func taskID(requestID string, n int) string {
 	return fmt.Sprintf("%s:t%d", requestID, n)
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b strings.Builder
-	for n > 0 {
-		b.WriteByte(byte('0' + n%10))
-		n /= 10
-	}
-	runes := []rune(b.String())
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
-	return string(runes)
 }

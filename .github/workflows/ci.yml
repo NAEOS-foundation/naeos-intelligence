@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feat/*]
 
 permissions:
   contents: read
@@ -55,6 +55,13 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
       - name: Scan Go code for known vulnerabilities
         run: "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Scan for secrets
+        run: |
+          set -e
+          if grep -rnEi '(sk_live|sk_test|pk_live|pk_test|ghp_|github_pat_|AKIA[0-9A-Z]{16}|[0-9a-zA-Z/+]{40}=|password|secret|api.key|api.token|access.token)' --include='*.go' --include='*.yaml' --include='*.yml' --include='*.md' --exclude='*_test.go' --exclude-dir=.git . | grep -viE '(TODO|FIXME|example|placeholder|do-not-leak|fake|test-|mock)' ; then
+            echo "Potential secrets detected"
+            exit 1
+          fi
       - name: Vet
         run: go vet ./...
       - name: Test
