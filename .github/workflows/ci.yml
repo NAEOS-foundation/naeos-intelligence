@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main, feat/*]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,6 +32,34 @@ jobs:
       DATABASE_URL: postgres://naeos:naeos@localhost:5432/naeos_intelligence_test?sslmode=disable
       NAEOS_POSTGRES_INTEGRATION: "1"
     steps:
+      - name: Runner preflight diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## CI runner preflight"
+            echo
+            echo "- Run ID: ${GITHUB_RUN_ID}"
+            echo "- Run attempt: ${GITHUB_RUN_ATTEMPT}"
+            echo "- Event: ${GITHUB_EVENT_NAME}"
+            echo "- Ref: ${GITHUB_REF}"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- Runner OS: ${RUNNER_OS}"
+            echo "- Runner architecture: ${RUNNER_ARCH}"
+            echo
+            echo "```text"
+            uname -a
+            cat /etc/os-release
+            git --version
+            df -h .
+            free -h
+            echo "```"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          uname -a
+          cat /etc/os-release
+          git --version
+          df -h .
+          free -h
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Set up Go
