@@ -57,7 +57,7 @@ func TestOrchestrator_Run(t *testing.T) {
 	pl := &fakePlanner{}
 	o := NewOrchestrator(cl, cb, pl, nil)
 
-	res, err := o.Run(context.Background(), "req-1", "analyze repository architecture", "analysis_only",
+	res, err := o.Run(context.Background(), "client-a", "req-1", "analyze repository architecture", "analysis_only",
 		[]intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}},
 		nil, model.Request{}, nil)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestOrchestrator_Run_ValidationErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := o.Run(context.Background(), tt.requestID, tt.purpose, "analysis_only", nil, nil, model.Request{}, nil)
+			_, err := o.Run(context.Background(), "client-a", tt.requestID, tt.purpose, "analysis_only", nil, nil, model.Request{}, nil)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")
@@ -117,19 +117,19 @@ func TestOrchestrator_Run_ValidationErrors(t *testing.T) {
 
 func TestOrchestrator_Run_ComponentErrors(t *testing.T) {
 	o := NewOrchestrator(&fakeClassifier{err: errors.New("classify failed")}, &fakeContextBuilder{}, &fakePlanner{}, nil)
-	_, err := o.Run(context.Background(), "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	_, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "classify: classify failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	o = NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{err: errors.New("build failed")}, &fakePlanner{}, nil)
-	_, err = o.Run(context.Background(), "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	_, err = o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "build context: build failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	o = NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{err: errors.New("plan failed")}, nil)
-	_, err = o.Run(context.Background(), "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	_, err = o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "plan: plan failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestOrchestrator_Run_ContextCancelled(t *testing.T) {
 	o := NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{}, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := o.Run(ctx, "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	_, err := o.Run(ctx, "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil {
 		t.Fatal("expected context cancelled error")
 	}
@@ -156,7 +156,7 @@ func TestOrchestrator_Run_WithProcessor(t *testing.T) {
 	o.Approval = governance.NewApprovalWorkflow()
 	o.Audit = governance.NewAuditLogger()
 
-	res, err := o.Run(context.Background(), "req-1", "analyze repository architecture", "analysis_only", nil, nil, model.Request{}, nil)
+	res, err := o.Run(context.Background(), "client-a", "req-1", "analyze repository architecture", "analysis_only", nil, nil, model.Request{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestOrchestrator_Run_AllIntentsProposed(t *testing.T) {
 		nil,
 	}
 	for i, intent := range intents {
-		res, err := o.Run(context.Background(), "eval-req-"+string(rune('1'+i)), purposes[i], "analysis_only",
+		res, err := o.Run(context.Background(), "client-a", "eval-req-"+string(rune('1'+i)), purposes[i], "analysis_only",
 			sourceSets[i], nil, model.Request{}, nil)
 		if err != nil {
 			t.Fatalf("intent %s: unexpected error: %v", intent, err)
@@ -242,11 +242,11 @@ func TestOrchestrator_Run_Deterministic(t *testing.T) {
 	purpose := "analyze repository architecture and technical debt"
 	inputs := []intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}}
 
-	first, err := o.Run(context.Background(), "det-req-1", purpose, "analysis_only", inputs, nil, model.Request{}, nil)
+	first, err := o.Run(context.Background(), "client-a", "det-req-1", purpose, "analysis_only", inputs, nil, model.Request{}, nil)
 	if err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	second, err := o.Run(context.Background(), "det-req-2", purpose, "analysis_only", inputs, nil, model.Request{}, nil)
+	second, err := o.Run(context.Background(), "client-a", "det-req-2", purpose, "analysis_only", inputs, nil, model.Request{}, nil)
 	if err != nil {
 		t.Fatalf("second run: %v", err)
 	}

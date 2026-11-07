@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/config"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
@@ -20,6 +21,8 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/verification"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const applicationName = "NAEOS Intelligence"
@@ -51,8 +54,8 @@ func run() error {
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
 	rp := runtime.NewProcessor(reg)
-	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 
+	var pool *pgxpool.Pool
 	validator, err := newOpenAPIValidator(cfg.OpenAPI.SpecPath)
 	if err != nil {
 		return fmt.Errorf("initialize OpenAPI validator: %w", err)
@@ -65,17 +68,36 @@ func run() error {
 		if cfg.App.Environment == "production" {
 			return errors.New("DATABASE_URL is required in production")
 		}
-		store = httpapi.NewMemoryStore()
-		closeStore = func() {}
 	} else {
 		startupCtx, startupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		pool, err := postgres.OpenPool(startupCtx, dsn)
+		var err error
+		pool, err = postgres.OpenPool(startupCtx, dsn)
 		startupCancel()
 		if err != nil {
 			return fmt.Errorf("initialize PostgreSQL pool: %w", err)
 		}
-		store = postgres.New(pool)
 		closeStore = pool.Close
+	}
+
+	var orch *orchestrator.Orchestrator
+	if pool != nil {
+		es := evidence.New(pool)
+		ve := verification.New()
+		orch = orchestrator.NewOrchestratorWithEvidence(cl, cb, pl, rp, es, ve)
+	} else {
+		orch = orchestrator.NewOrchestrator(cl, cb, pl, rp)
+	}
+
+	validator, err := newOpenAPIValidator(cfg.OpenAPI.SpecPath)
+	if err != nil {
+		return fmt.Errorf("initialize OpenAPI validator: %w", err)
+	}
+
+	var store httpapi.Store
+	if pool != nil {
+		store = postgres.New(pool)
+	} else {
+		store = httpapi.NewMemoryStore()
 	}
 	defer closeStore()
 

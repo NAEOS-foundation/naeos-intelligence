@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
@@ -14,6 +15,7 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/policy"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/verification"
 )
 
 // PipelineResult is the full orchestration output for a read-only intelligence request.
@@ -29,12 +31,14 @@ type PipelineResult struct {
 
 // Orchestrator coordinates classifier, context builder, planner, and runtime.
 type Orchestrator struct {
-	Classifier classifier.Classifier
-	Context    intctx.Builder
-	Planner    planner.Planner
-	Processor  *runtime.Processor
-	Approval   *governance.ApprovalWorkflow
-	Audit      *governance.AuditLogger
+	Classifier        classifier.Classifier
+	Context           intctx.Builder
+	Planner           planner.Planner
+	Processor         *runtime.Processor
+	Approval          *governance.ApprovalWorkflow
+	Audit             *governance.AuditLogger
+	EvidenceStore     *evidence.Store
+	VerificationEngine *verification.Engine
 }
 
 // NewOrchestrator creates an orchestrator wiring intelligence components together.
@@ -47,10 +51,25 @@ func NewOrchestrator(cl classifier.Classifier, cb intctx.Builder, pl planner.Pla
 	}
 }
 
+// NewOrchestratorWithEvidence creates an orchestrator with evidence and verification wired in.
+func NewOrchestratorWithEvidence(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor, es *evidence.Store, ve *verification.Engine) *Orchestrator {
+	return &Orchestrator{
+		Classifier:         cl,
+		Context:            cb,
+		Planner:            pl,
+		Processor:          rp,
+		EvidenceStore:      es,
+		VerificationEngine: ve,
+	}
+}
+
 // Run executes the read-only intelligence pipeline: classify → context → plan → runtime gate.
-func (o *Orchestrator) Run(ctx context.Context, requestID, purpose, executionMode string, inputs []intctx.SourceInput, desiredOutputs []string, req model.Request, requiredCapabilities []string) (PipelineResult, error) {
+func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, executionMode string, inputs []intctx.SourceInput, desiredOutputs []string, req model.Request, requiredCapabilities []string) (PipelineResult, error) {
 	if err := ctx.Err(); err != nil {
 		return PipelineResult{}, err
+	}
+	if strings.TrimSpace(clientID) == "" {
+		return PipelineResult{}, errors.New("client ID is required")
 	}
 	if strings.TrimSpace(requestID) == "" {
 		return PipelineResult{}, errors.New("request_id is required")
@@ -110,6 +129,21 @@ func (o *Orchestrator) Run(ctx context.Context, requestID, purpose, executionMod
 	// 5. Record audit
 	if o.Audit != nil {
 		_ = o.Audit.Record(requestID, "orchestration.completed", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed))
+	}
+
+	// 6. Record evidence events (fail-safe; does not fail the pipeline)
+	if o.EvidenceStore != nil {
+		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.classified", "system", "orchestrator", fmt.Sprintf("intent=%s", classResult.Intent), "")
+		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.planned", "system", "orchestrator", fmt.Sprintf("tasks=%d", len(plan.Tasks)), "")
+		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.completed", "system", "orchestrator", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed), "")
+	}
+
+	// 7. Run verification and record result as evidence (fail-safe)
+	if o.VerificationEngine != nil && o.EvidenceStore != nil {
+		vr, verr := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
+		if verr == nil {
+			_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.verified", "system", "verification", fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome), vr.VerificationID)
+		}
 	}
 
 	return PipelineResult{
