@@ -88,12 +88,6 @@ func run() error {
 		orch = orchestrator.NewOrchestrator(cl, cb, pl, rp)
 	}
 
-	validator, err := newOpenAPIValidator(cfg.OpenAPI.SpecPath)
-	if err != nil {
-		return fmt.Errorf("initialize OpenAPI validator: %w", err)
-	}
-
-	var store httpapi.Store
 	if pool != nil {
 		store = postgres.New(pool)
 	} else {
