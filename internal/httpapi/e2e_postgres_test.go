@@ -91,8 +91,9 @@ func TestE2EPostgresSubmitGetCancel(t *testing.T) {
 
 	body := `{"purpose":"e2e submit get cancel","execution_mode":"analysis_only","desired_outputs":["trace"]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer fake")
-	req.Header.Set("Idempotency-Key", "e2e-idem-1")
+	req.Header.Set("Idempotency-Key", "e2e-idem-"+t.Name())
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusAccepted {
@@ -124,6 +125,7 @@ func TestE2EPostgresSubmitGetCancel(t *testing.T) {
 
 	// Cancel the request
 	cancelReq := httptest.NewRequest(http.MethodPost, accepted.StatusURL+"/cancel", nil)
+	cancelReq.Header.Set("Content-Type", "application/json")
 	cancelReq.Header.Set("Authorization", "Bearer fake")
 	cancelRec := httptest.NewRecorder()
 	h.ServeHTTP(cancelRec, cancelReq)
@@ -188,8 +190,9 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 	// Submit as client-a
 	body := `{"purpose":"cross client isolation","execution_mode":"analysis_only"}`
 	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReq.Header.Set("Content-Type", "application/json")
 	submitReq.Header.Set("Authorization", "Bearer fake")
-	submitReq.Header.Set("Idempotency-Key", "iso-key-1")
+	submitReq.Header.Set("Idempotency-Key", "iso-key-"+t.Name())
 	submitRec := httptest.NewRecorder()
 	hA.ServeHTTP(submitRec, submitReq)
 	if submitRec.Code != http.StatusAccepted {
@@ -226,6 +229,7 @@ func TestE2EPostgresAnalyze(t *testing.T) {
 	// Submit a request
 	body := `{"purpose":"Analyze repository architecture and technical debt","execution_mode":"analysis_only","context_sources":[{"type":"repository","reference":"github.com/owner/repo"}],"desired_outputs":["risk_summary"]}`
 	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReq.Header.Set("Content-Type", "application/json")
 	submitReq.Header.Set("Authorization", "Bearer fake")
 	submitReq.Header.Set("Idempotency-Key", "e2e-analyze-idem-1")
 	submitRec := httptest.NewRecorder()
@@ -243,6 +247,7 @@ func TestE2EPostgresAnalyze(t *testing.T) {
 
 	// Run analyze
 	analyzeReq := httptest.NewRequest(http.MethodPost, accepted.StatusURL+"/analyze", strings.NewReader(`{}`))
+	analyzeReq.Header.Set("Content-Type", "application/json")
 	analyzeReq.Header.Set("Authorization", "Bearer fake")
 	analyzeRec := httptest.NewRecorder()
 	h.ServeHTTP(analyzeRec, analyzeReq)
@@ -283,6 +288,84 @@ func TestE2EPostgresAnalyze(t *testing.T) {
 	}
 	if _, ok := result["provenance"].(string); !ok {
 		t.Errorf("provenance missing or not a string: %v", result["provenance"])
+	}
+}
+
+func TestE2EPostgresAnalyzeNotFound(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	h, _ := e2ePostgresHandlerWithOrchestrator(t, ctx)
+
+	analyzeReq := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests/does-not-exist/analyze", strings.NewReader(`{}`))
+	analyzeReq.Header.Set("Content-Type", "application/json")
+	analyzeReq.Header.Set("Authorization", "Bearer fake")
+	analyzeRec := httptest.NewRecorder()
+	h.ServeHTTP(analyzeRec, analyzeReq)
+	if analyzeRec.Code != http.StatusNotFound {
+		t.Fatalf("analyze notfound status=%d, want 404: %s", analyzeRec.Code, analyzeRec.Body.String())
+	}
+}
+
+func TestE2EPostgresAnalyzeNoOrchestrator(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	h, _ := e2ePostgresHandler(t, ctx)
+
+	body := `{"purpose":"no orchestrator","execution_mode":"analysis_only"}`
+	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReq.Header.Set("Content-Type", "application/json")
+	submitReq.Header.Set("Authorization", "Bearer fake")
+	submitReq.Header.Set("Idempotency-Key", "e2e-noorch-idem-1")
+	submitRec := httptest.NewRecorder()
+	h.ServeHTTP(submitRec, submitReq)
+	if submitRec.Code != http.StatusAccepted {
+		t.Fatalf("submit status=%d, want 202: %s", submitRec.Code, submitRec.Body.String())
+	}
+	var accepted httpapi.Accepted
+	if err := json.Unmarshal(submitRec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted: %v", err)
+	}
+
+	analyzeReq := httptest.NewRequest(http.MethodPost, accepted.StatusURL+"/analyze", strings.NewReader(`{}`))
+	analyzeReq.Header.Set("Content-Type", "application/json")
+	analyzeReq.Header.Set("Authorization", "Bearer fake")
+	analyzeRec := httptest.NewRecorder()
+	h.ServeHTTP(analyzeRec, analyzeReq)
+	if analyzeRec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("analyze no orchestrator status=%d, want 503: %s", analyzeRec.Code, analyzeRec.Body.String())
+	}
+}
+
+func TestE2EPostgresAnalyzeInvalidBody(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	h, _ := e2ePostgresHandlerWithOrchestrator(t, ctx)
+
+	body := `{"purpose":"invalid body","execution_mode":"analysis_only"}`
+	submitReq := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReq.Header.Set("Content-Type", "application/json")
+	submitReq.Header.Set("Authorization", "Bearer fake")
+	submitReq.Header.Set("Idempotency-Key", "e2e-invalidbody-idem-1")
+	submitRec := httptest.NewRecorder()
+	h.ServeHTTP(submitRec, submitReq)
+	if submitRec.Code != http.StatusAccepted {
+		t.Fatalf("submit status=%d, want 202: %s", submitRec.Code, submitRec.Body.String())
+	}
+	var accepted httpapi.Accepted
+	if err := json.Unmarshal(submitRec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted: %v", err)
+	}
+
+	analyzeReq := httptest.NewRequest(http.MethodPost, accepted.StatusURL+"/analyze", strings.NewReader(`not-json`))
+	analyzeReq.Header.Set("Content-Type", "application/json")
+	analyzeReq.Header.Set("Authorization", "Bearer fake")
+	analyzeRec := httptest.NewRecorder()
+	h.ServeHTTP(analyzeRec, analyzeReq)
+	if analyzeRec.Code != http.StatusBadRequest {
+		t.Fatalf("analyze invalid body status=%d, want 400: %s", analyzeRec.Code, analyzeRec.Body.String())
 	}
 }
 

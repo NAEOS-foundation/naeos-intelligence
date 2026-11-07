@@ -171,6 +171,96 @@ func TestOrchestrator_Run_WithProcessor(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_Run_AllIntentsProposed(t *testing.T) {
+	reg := model.NewRegistry()
+	_ = reg.Register(&mockProvider{id: "eval-provider"})
+	proc := runtime.NewProcessor(reg)
+	cl := classifier.NewRuleClassifier()
+	cb := intctx.NewRuleBuilder()
+	pl := planner.NewRulePlanner()
+	o := NewOrchestrator(cl, cb, pl, proc)
+
+	intents := []classifier.Intent{
+		classifier.IntentRepositoryAnalysis,
+		classifier.IntentIssueInterpretation,
+		classifier.IntentPRReview,
+		classifier.IntentPlanning,
+		classifier.IntentKnowledgeRetrieval,
+		classifier.IntentUnknown,
+	}
+	purposes := []string{
+		"analyze repository architecture and technical debt",
+		"interpret this engineering issue and requirement",
+		"review the pull request diff and identify risks",
+		"generate a structured execution plan with dependencies",
+		"retrieve documentation and context from knowledge base",
+		"something completely unrelated xyzzy",
+	}
+	sourceSets := [][]intctx.SourceInput{
+		{{Type: "repository", Reference: "github.com/o/r"}},
+		{{Type: "repository", Reference: "github.com/o/r"}},
+		{{Type: "repository", Reference: "github.com/o/r"}},
+		{{Type: "repository", Reference: "github.com/o/r"}},
+		{{Type: "repository", Reference: "github.com/o/r"}},
+		nil,
+	}
+	for i, intent := range intents {
+		res, err := o.Run(context.Background(), "eval-req-"+string(rune('1'+i)), purposes[i], "analysis_only",
+			sourceSets[i], nil, model.Request{}, nil)
+		if err != nil {
+			t.Fatalf("intent %s: unexpected error: %v", intent, err)
+		}
+		if res.Intent != intent {
+			t.Errorf("intent %s: got %q, want %q", intent, res.Intent, intent)
+		}
+		if len(res.Plan.Tasks) == 0 {
+			t.Errorf("intent %s: plan must contain at least one task", intent)
+		}
+		for _, task := range res.Plan.Tasks {
+			if task.Status != "proposed" {
+				t.Errorf("intent %s: task %s status = %q, want proposed", intent, task.ID, task.Status)
+			}
+		}
+		if !res.RuntimeResult.Allowed {
+			t.Errorf("intent %s: runtime must be allowed for analysis_only", intent)
+		}
+		if res.PolicyDecision.Allowed != true {
+			t.Errorf("intent %s: policy must be allowed", intent)
+		}
+	}
+}
+
+func TestOrchestrator_Run_Deterministic(t *testing.T) {
+	reg := model.NewRegistry()
+	_ = reg.Register(&mockProvider{id: "det-provider"})
+	proc := runtime.NewProcessor(reg)
+	cl := classifier.NewRuleClassifier()
+	cb := intctx.NewRuleBuilder()
+	pl := planner.NewRulePlanner()
+	o := NewOrchestrator(cl, cb, pl, proc)
+
+	purpose := "analyze repository architecture and technical debt"
+	inputs := []intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}}
+
+	first, err := o.Run(context.Background(), "det-req-1", purpose, "analysis_only", inputs, nil, model.Request{}, nil)
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	second, err := o.Run(context.Background(), "det-req-2", purpose, "analysis_only", inputs, nil, model.Request{}, nil)
+	if err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if first.Intent != second.Intent {
+		t.Errorf("intent not deterministic: %q vs %q", first.Intent, second.Intent)
+	}
+	if len(first.Plan.Tasks) != len(second.Plan.Tasks) {
+		t.Errorf("task count not deterministic: %d vs %d", len(first.Plan.Tasks), len(second.Plan.Tasks))
+	}
+	if first.Provenance != second.Provenance {
+		t.Errorf("provenance not deterministic: %q vs %q", first.Provenance, second.Provenance)
+	}
+}
+
 type mockProvider struct {
 	id string
 }
