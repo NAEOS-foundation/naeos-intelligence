@@ -24,7 +24,7 @@ func TestOpenAPIErrorResponsesDeclareEndpointCodes(t *testing.T) {
 	paths := mapping(t, document["paths"], "paths")
 	operations := []struct {
 		path, method, operationID string
-		errors                   map[string]string
+		errors                    map[string]string
 	}{
 		{
 			"/intelligence/requests", "post", "submitIntelligenceRequest",

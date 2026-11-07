@@ -14,8 +14,14 @@ import (
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/config"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
+	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/orchestrator"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/planner"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
 )
 
 const applicationName = "NAEOS Intelligence"
@@ -32,12 +38,18 @@ func authVerifierFromEnvironment() (httpapi.TokenVerifier, error) {
 
 func run() error {
 	cfg, err := config.Load(os.Environ())
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	verifier, err := authVerifierFromEnvironment()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	addr := os.Getenv("NAEOS_INTELLIGENCE_HTTP_ADDR")
-	if addr == "" { addr = "127.0.0.1:8080" }
+	if addr == "" {
+		addr = "127.0.0.1:8080"
+	}
 
 	rateLimitRate := 10.0
 	rateLimitBurst := 20
@@ -53,6 +65,13 @@ func run() error {
 	}
 	limiter := ratelimit.NewLimiter(rateLimitRate, rateLimitBurst)
 
+	cl := classifier.NewRuleClassifier()
+	cb := intctx.NewRuleBuilder()
+	pl := planner.NewRulePlanner()
+	reg := model.NewRegistry()
+	rp := runtime.NewProcessor(reg)
+	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
+
 	validator, err := newOpenAPIValidator()
 	if err != nil {
 		return fmt.Errorf("initialize OpenAPI validator: %w", err)
@@ -62,26 +81,30 @@ func run() error {
 	var closeStore func()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		if cfg.App.Environment == "production" { return errors.New("DATABASE_URL is required in production") }
+		if cfg.App.Environment == "production" {
+			return errors.New("DATABASE_URL is required in production")
+		}
 		store = httpapi.NewMemoryStore()
 		closeStore = func() {}
 	} else {
 		startupCtx, startupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		pool, err := postgres.OpenPool(startupCtx, dsn)
 		startupCancel()
-		if err != nil { return fmt.Errorf("initialize PostgreSQL pool: %w", err) }
+		if err != nil {
+			return fmt.Errorf("initialize PostgreSQL pool: %w", err)
+		}
 		store = postgres.New(pool)
 		closeStore = pool.Close
 	}
 	defer closeStore()
 
 	server := &http.Server{
-		Addr: addr,
-		Handler: httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}, limiter, validator),
+		Addr:              addr,
+		Handler:           httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}, limiter, validator, orch),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: 10 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout: 60 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -95,7 +118,9 @@ func run() error {
 
 	select {
 	case err := <-serverErr:
-		if errors.Is(err, http.ErrServerClosed) { return nil }
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
 		return err
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -108,7 +133,12 @@ func run() error {
 	}
 }
 
-func storageMode(dsn string) string { if dsn == "" { return "memory" }; return "postgres" }
+func storageMode(dsn string) string {
+	if dsn == "" {
+		return "memory"
+	}
+	return "postgres"
+}
 
 func newOpenAPIValidator() (*httpapi.OpenAPIValidator, error) {
 	candidates := []string{
@@ -128,5 +158,8 @@ func newOpenAPIValidator() (*httpapi.OpenAPIValidator, error) {
 }
 
 func main() {
-	if err := run(); err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

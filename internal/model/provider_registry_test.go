@@ -14,7 +14,7 @@ func (p *registryTestProvider) Generate(context.Context, Request) (Response, err
 	return Response{ModelID: "test", Text: p.id}, nil
 }
 func (p *registryTestProvider) HealthCheck(context.Context) error { return nil }
-func (p *registryTestProvider) Capabilities() []string             { return nil }
+func (p *registryTestProvider) Capabilities() []string            { return nil }
 
 func TestRegistryRejectsDuplicateProviderIDWithoutReplacingExisting(t *testing.T) {
 	registry := NewRegistry()

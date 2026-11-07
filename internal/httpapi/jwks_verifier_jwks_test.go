@@ -50,10 +50,10 @@ func TestJWKSVerifierRejectsDocumentsWithoutUsableSigningKeys(t *testing.T) {
 			defer server.Close()
 
 			verifier := &JWKSVerifier{
-				issuer: "https://issuer.test",
+				issuer:   "https://issuer.test",
 				audience: "naeos-api",
-				jwksURL: server.URL,
-				client: server.Client(),
+				jwksURL:  server.URL,
+				client:   server.Client(),
 			}
 			if _, err := verifier.key(context.Background(), "key-1"); err == nil {
 				t.Fatal("JWKS containing no acceptable signing keys must be rejected")
@@ -64,9 +64,9 @@ func TestJWKSVerifierRejectsDocumentsWithoutUsableSigningKeys(t *testing.T) {
 
 func TestJWKSVerifierRejectsUnsuccessfulAndMalformedJWKSResponses(t *testing.T) {
 	tests := []struct {
-		name string
+		name   string
 		status int
-		body string
+		body   string
 	}{
 		{name: "HTTP error", status: http.StatusServiceUnavailable, body: ""},
 		{name: "malformed JSON", status: http.StatusOK, body: "{not-json"},
@@ -81,10 +81,10 @@ func TestJWKSVerifierRejectsUnsuccessfulAndMalformedJWKSResponses(t *testing.T) 
 			defer server.Close()
 
 			verifier := &JWKSVerifier{
-				issuer: "https://issuer.test",
+				issuer:   "https://issuer.test",
 				audience: "naeos-api",
-				jwksURL: server.URL,
-				client: server.Client(),
+				jwksURL:  server.URL,
+				client:   server.Client(),
 			}
 			if _, err := verifier.key(context.Background(), "key-1"); err == nil {
 				t.Fatal("unsuccessful or malformed JWKS response must be rejected")
@@ -100,10 +100,10 @@ func TestJWKSVerifierRejectsOversizedJWKSResponse(t *testing.T) {
 	defer server.Close()
 
 	verifier := &JWKSVerifier{
-		issuer: "https://issuer.test",
+		issuer:   "https://issuer.test",
 		audience: "naeos-api",
-		jwksURL: server.URL,
-		client: server.Client(),
+		jwksURL:  server.URL,
+		client:   server.Client(),
 	}
 	if _, err := verifier.key(context.Background(), "key-1"); err == nil {
 		t.Fatal("oversized JWKS response must be rejected")
@@ -126,18 +126,18 @@ func TestJWKSVerifierRefreshesWhenSigningKeyIDIsUnknown(t *testing.T) {
 				"use": "sig",
 				"alg": "RS256",
 				"kid": kid,
-				"n": strings.Repeat("A", 350),
-				"e": "AQAB",
+				"n":   strings.Repeat("A", 350),
+				"e":   "AQAB",
 			}},
 		})
 	}))
 	defer server.Close()
 
 	verifier := &JWKSVerifier{
-		issuer: "https://issuer.test",
+		issuer:   "https://issuer.test",
 		audience: "naeos-api",
-		jwksURL: server.URL,
-		client: server.Client(),
+		jwksURL:  server.URL,
+		client:   server.Client(),
 	}
 
 	if _, err := verifier.key(context.Background(), "key-1"); err != nil {

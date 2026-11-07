@@ -60,13 +60,13 @@ func (v *OpenAPIValidator) Middleware(next http.Handler) http.Handler {
 		}
 
 		input := &openapi3filter.RequestValidationInput{
-			Request:    r,
-			Route:      route,
-			PathParams: pathParams,
+			Request:     r,
+			Route:       route,
+			PathParams:  pathParams,
 			QueryParams: r.URL.Query(),
 			Options: &openapi3filter.Options{
-				ExcludeRequestBody:  false,
-				AuthenticationFunc:  openapi3filter.NoopAuthenticationFunc,
+				ExcludeRequestBody: false,
+				AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
 			},
 		}
 

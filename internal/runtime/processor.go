@@ -12,11 +12,11 @@ import (
 
 // Result is the bounded decision produced by the runtime gate.
 type Result struct {
-	RequestID        string
-	ProviderID       string
-	Allowed          bool
-	ApprovalRequired bool
-	Reason           string
+	RequestID        string `json:"request_id"`
+	ProviderID       string `json:"provider_id,omitempty"`
+	Allowed          bool   `json:"allowed"`
+	ApprovalRequired bool   `json:"approval_required"`
+	Reason           string `json:"reason,omitempty"`
 }
 
 // Processor is the runtime boundary that validates a request and selects a compatible provider.

@@ -14,9 +14,9 @@ type RequestInput struct {
 // Decision captures whether a request may proceed and whether an approval step
 // is required in a future governed workflow.
 type Decision struct {
-	Allowed          bool
-	ApprovalRequired bool
-	Reason           string
+	Allowed          bool   `json:"allowed"`
+	ApprovalRequired bool   `json:"approval_required"`
+	Reason           string `json:"reason,omitempty"`
 }
 
 // EvaluateRequest enforces the current read-only MVP boundary: only analysis_only
