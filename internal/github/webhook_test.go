@@ -138,3 +138,29 @@ func TestWebhookValidator_Validate_NilBody(t *testing.T) {
 		t.Fatal("expected nil body error")
 	}
 }
+
+func TestWebhookValidator_Validate_EmptySecretFailsClosed(t *testing.T) {
+	body := []byte(`{}`)
+	mac := hmac.New(sha256.New, nil)
+	_, _ = mac.Write(body)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", strings.NewReader(string(body)))
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+	req.Header.Set("X-GitHub-Event", "push")
+
+	_, _, err := NewWebhookValidator("").Validate(req)
+	if err == nil || err.Error() != "github: webhook secret is not configured" {
+		t.Fatalf("err=%v, want missing-secret error", err)
+	}
+}
+
+func TestWebhookValidator_Validate_OversizedPayloadRejected(t *testing.T) {
+	body := strings.Repeat("a", maxWebhookPayloadBytes+1)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/github", strings.NewReader(body))
+	req.Header.Set("X-Hub-Signature-256", "sha256=unused")
+	req.Header.Set("X-GitHub-Event", "push")
+
+	_, _, err := NewWebhookValidator("secret").Validate(req)
+	if err == nil || err.Error() != "github: webhook payload exceeds 1 MiB" {
+		t.Fatalf("err=%v, want payload-too-large error", err)
+	}
+}
