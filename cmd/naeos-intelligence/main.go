@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -46,24 +44,7 @@ func run() error {
 		return err
 	}
 
-	addr := os.Getenv("NAEOS_INTELLIGENCE_HTTP_ADDR")
-	if addr == "" {
-		addr = "127.0.0.1:8080"
-	}
-
-	rateLimitRate := 10.0
-	rateLimitBurst := 20
-	if v := os.Getenv("NAEOS_INTELLIGENCE_RATE_LIMIT_RATE"); v != "" {
-		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil && parsed > 0 {
-			rateLimitRate = parsed
-		}
-	}
-	if v := os.Getenv("NAEOS_INTELLIGENCE_RATE_LIMIT_BURST"); v != "" {
-		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && parsed > 0 {
-			rateLimitBurst = parsed
-		}
-	}
-	limiter := ratelimit.NewLimiter(rateLimitRate, rateLimitBurst)
+	limiter := ratelimit.NewLimiter(cfg.RateLimit.Rate, cfg.RateLimit.Burst)
 
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
@@ -72,7 +53,7 @@ func run() error {
 	rp := runtime.NewProcessor(reg)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 
-	validator, err := newOpenAPIValidator()
+	validator, err := newOpenAPIValidator(cfg.OpenAPI.SpecPath)
 	if err != nil {
 		return fmt.Errorf("initialize OpenAPI validator: %w", err)
 	}
@@ -99,7 +80,7 @@ func run() error {
 	defer closeStore()
 
 	server := &http.Server{
-		Addr:              addr,
+		Addr:              cfg.HTTP.Addr,
 		Handler:           httpapi.NewHandler(store, httpapi.Authenticator{Verifier: verifier}, limiter, validator, orch),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
@@ -112,7 +93,7 @@ func run() error {
 	serverErr := make(chan error, 1)
 	go func() {
 		fmt.Printf("%s HTTP server starting (environment=%s log_level=%s addr=%s storage=%s)\n",
-			applicationName, cfg.App.Environment, cfg.App.LogLevel, addr, storageMode(dsn))
+			applicationName, cfg.App.Environment, cfg.App.LogLevel, cfg.HTTP.Addr, storageMode(dsn))
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -140,21 +121,12 @@ func storageMode(dsn string) string {
 	return "postgres"
 }
 
-func newOpenAPIValidator() (*httpapi.OpenAPIValidator, error) {
-	candidates := []string{
-		"api/openapi.yaml",
-		"../../api/openapi.yaml",
-		"/app/api/openapi.yaml",
+func newOpenAPIValidator(specPath string) (*httpapi.OpenAPIValidator, error) {
+	v, err := httpapi.NewOpenAPIValidator(specPath)
+	if err != nil {
+		return nil, fmt.Errorf("load OpenAPI spec %s: %w", specPath, err)
 	}
-	var lastErr error
-	for _, path := range candidates {
-		v, err := httpapi.NewOpenAPIValidator(path)
-		if err == nil {
-			return v, nil
-		}
-		lastErr = err
-	}
-	return nil, fmt.Errorf("openapi spec not found in any candidate path, last error: %w", lastErr)
+	return v, nil
 }
 
 func main() {
