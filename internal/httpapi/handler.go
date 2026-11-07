@@ -241,7 +241,7 @@ func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
 		contextInputs = append(contextInputs, intctx.SourceInput{Type: s.Type, Reference: s.Reference})
 	}
 
-	result, err := h.orchestrator.Run(r.Context(), req.RequestID, req.Purpose, req.ExecutionMode, contextInputs, desiredOutputs, model.Request{}, nil)
+	result, err := h.orchestrator.Run(r.Context(), p.ClientID, req.RequestID, req.Purpose, req.ExecutionMode, contextInputs, desiredOutputs, model.Request{}, nil)
 	if err != nil {
 		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Intelligence analysis could not be completed")
 		return
