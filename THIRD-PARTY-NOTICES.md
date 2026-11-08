@@ -15,7 +15,7 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 | github.com/andybalholm/brotli | v1.1.1 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/andybalholm/brotli@v1.1.1 |
 | github.com/antlr4-go/antlr/v4 | v4.13.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/antlr4-go/antlr/v4@v4.13.0 |
 | github.com/coder/websocket | v1.8.12 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/coder/websocket@v1.8.12 |
-| github.com/davecgh/go-spew | v1.1.1 | UNKNOWN (manual review required) | LICENSE | https://pkg.go.dev/github.com/davecgh/go-spew@v1.1.1 |
+| github.com/davecgh/go-spew | v1.1.1 | ISC | Upstream license (manually verified) | https://github.com/davecgh/go-spew/blob/v1.1.1/LICENSE |
 | github.com/dlclark/regexp2 | v1.11.0 | MIT | LICENSE | https://pkg.go.dev/github.com/dlclark/regexp2@v1.11.0 |
 | github.com/dustin/go-humanize | v1.0.1 | MIT | LICENSE | https://pkg.go.dev/github.com/dustin/go-humanize@v1.0.1 |
 | github.com/elastic/go-sysinfo | v1.11.2 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/elastic/go-sysinfo@v1.11.2 |
@@ -42,8 +42,8 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 | github.com/joho/godotenv | v1.5.1 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/joho/godotenv@v1.5.1 |
 | github.com/jonboulle/clockwork | v0.4.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/jonboulle/clockwork@v0.4.0 |
 | github.com/klauspost/compress | v1.17.7 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/klauspost/compress@v1.17.7 |
-| github.com/kr/pretty | v0.3.0 | UNKNOWN (license file not found) | Not found in module cache | https://pkg.go.dev/github.com/kr/pretty@v0.3.0 |
-| github.com/kr/text | v0.2.0 | UNKNOWN (license file not found) | Not found in module cache | https://pkg.go.dev/github.com/kr/text@v0.2.0 |
+| github.com/kr/pretty | v0.3.0 | MIT | Upstream license (manually verified) | https://github.com/kr/pretty/blob/v0.3.0/License |
+| github.com/kr/text | v0.2.0 | MIT | Upstream license (manually verified) | https://github.com/kr/text/blob/v0.2.0/License |
 | github.com/mattn/go-isatty | v0.0.20 | MIT | LICENSE | https://pkg.go.dev/github.com/mattn/go-isatty@v0.0.20 |
 | github.com/mfridman/interpolate | v0.0.2 | MIT | LICENSE.txt | https://pkg.go.dev/github.com/mfridman/interpolate@v0.0.2 |
 | github.com/mfridman/xflag | v0.1.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/mfridman/xflag@v0.1.0 |

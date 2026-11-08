@@ -12,6 +12,20 @@ from pathlib import Path
 OUTPUT = Path("THIRD-PARTY-NOTICES.md")
 LICENSE_NAMES = ("LICENSE", "LICENSE.txt", "LICENSE.md", "COPYING", "NOTICE")
 
+# Exact-version overrides were manually checked against the upstream license files.
+# Keep versions pinned here; re-review when any resolved version changes.
+LICENSE_OVERRIDES = {
+    ("github.com/davecgh/go-spew", "v1.1.1"): (
+        "ISC", "https://github.com/davecgh/go-spew/blob/v1.1.1/LICENSE"
+    ),
+    ("github.com/kr/pretty", "v0.3.0"): (
+        "MIT", "https://github.com/kr/pretty/blob/v0.3.0/License"
+    ),
+    ("github.com/kr/text", "v0.2.0"): (
+        "MIT", "https://github.com/kr/text/blob/v0.2.0/License"
+    ),
+}
+
 def stream_json(raw):
     decoder = json.JSONDecoder()
     index = 0
@@ -50,11 +64,16 @@ def main():
         directory = Path(mod.get("Dir", ""))
         candidates = [directory / name for name in LICENSE_NAMES]
         found = next((candidate for candidate in candidates if candidate.is_file()), None)
-        license_id = classify(found.read_text(errors="replace")) if found else "UNKNOWN (license file not found)"
-        if license_id.startswith("UNKNOWN") or "review required" in license_id:
-            print(f"License review required: {path}@{version}: {license_id}", file=sys.stderr)
-        link = f"https://pkg.go.dev/{path}@{version}" if version != "(main module)" else "—"
-        license_file = found.name if found else "Not found in module cache"
+        override = LICENSE_OVERRIDES.get((path, version))
+        if override:
+            license_id, link = override
+            license_file = "Upstream license (manually verified)"
+        else:
+            license_id = classify(found.read_text(errors="replace")) if found else "UNKNOWN (license file not found)"
+            if license_id.startswith("UNKNOWN") or "review required" in license_id:
+                print(f"License review required: {path}@{version}: {license_id}", file=sys.stderr)
+            link = f"https://pkg.go.dev/{path}@{version}" if version != "(main module)" else "—"
+            license_file = found.name if found else "Not found in module cache"
         rows.append(f"| {path} | {version} | {license_id} | {license_file} | {link} |")
 
     content = """# Third-Party Notices
