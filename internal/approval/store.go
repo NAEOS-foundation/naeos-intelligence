@@ -30,10 +30,17 @@ func New(pool *pgxpool.Pool) *Store {
 }
 
 // Close releases the connection pool.
-func (s *Store) Close() { s.pool.Close() }
+func (s *Store) Close() {
+	if s != nil && s.pool != nil {
+		s.pool.Close()
+	}
+}
 
 // Ping verifies database connectivity.
 func (s *Store) Ping(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return errors.New("approval store database pool is nil")
+	}
 	if err := s.pool.Ping(ctx); err != nil {
 		return fmt.Errorf("approval ping: %w", err)
 	}
@@ -62,6 +69,10 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 	case "analysis_only", "governed":
 	default:
 		return governance.ApprovalDecision{}, fmt.Errorf("unsupported execution_mode %q", executionMode)
+	}
+
+	if s == nil || s.pool == nil {
+		return governance.ApprovalDecision{}, errors.New("approval store database pool is nil")
 	}
 
 	// Check for existing decision
@@ -127,10 +138,13 @@ func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approve
 	if strings.TrimSpace(requestID) == "" {
 		return errors.New("request_id is required")
 	}
-	if strings.TrimSpace(decision) == "" {
-		return errors.New("decision is required")
-	}
 	decision = strings.TrimSpace(decision)
+	if err := validateDecision(decision); err != nil {
+		return err
+	}
+	if s == nil || s.pool == nil {
+		return errors.New("approval store database pool is nil")
+	}
 	approvedBy = strings.TrimSpace(approvedBy)
 	reason = strings.TrimSpace(reason)
 	if at.IsZero() {
@@ -174,7 +188,7 @@ func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approve
 
 // Get returns a recorded decision for a request ID if it exists.
 func (s *Store) Get(ctx context.Context, requestID string) (governance.ApprovalDecision, bool) {
-	if strings.TrimSpace(requestID) == "" {
+	if strings.TrimSpace(requestID) == "" || s == nil || s.pool == nil {
 		return governance.ApprovalDecision{}, false
 	}
 	var d governance.ApprovalDecision
@@ -203,6 +217,9 @@ func (s *Store) Get(ctx context.Context, requestID string) (governance.ApprovalD
 
 // Decisions returns all recorded decisions sorted by timestamp.
 func (s *Store) Decisions(ctx context.Context) ([]governance.ApprovalDecision, error) {
+	if s == nil || s.pool == nil {
+		return nil, errors.New("approval store database pool is nil")
+	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT request_id::text, action, execution_mode, decision, approved_by, reason, created_at
 		FROM approval_decisions
@@ -234,6 +251,15 @@ func (s *Store) Decisions(ctx context.Context) ([]governance.ApprovalDecision, e
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
 	return items, nil
+}
+
+func validateDecision(decision string) error {
+	switch decision {
+	case "pending", "approved", "rejected":
+		return nil
+	default:
+		return fmt.Errorf("unsupported approval decision %q; must be pending, approved, or rejected", decision)
+	}
 }
 
 func newUUID() (string, error) {
