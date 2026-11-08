@@ -52,20 +52,14 @@ func TestEvaluateValidation(t *testing.T) {
 	}{
 		{"empty request ID", "", "analysis_only", "read", true},
 		{"empty action", "req-1", "analysis_only", "", true},
-		{"valid analysis_only", "req-1", "analysis_only", "read", false},
-		{"valid governed", "req-2", "governed", "mutate", false},
+		{"valid analysis_only with nil pool", "req-1", "analysis_only", "read", true},
+		{"valid governed with nil pool", "req-2", "governed", "mutate", true},
 		{"unsupported mode", "req-3", "execute", "run", true},
-		{"empty mode defaults to analysis_only", "req-4", "", "read", false},
+		{"empty mode defaults but nil pool", "req-4", "", "read", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Validation-only checks: if pool is nil, only validation errors
-			// are reachable. Valid inputs that pass validation will try DB
-			// access and panic on nil pool, so we skip those.
-			if s.pool == nil && !tt.wantErr {
-				t.Skip("skipping DB-dependent test with nil pool")
-			}
 			_, err := s.Evaluate(context.Background(), tt.requestID, tt.executionMode, tt.action)
 			if tt.wantErr {
 				if err == nil {
@@ -92,15 +86,13 @@ func TestRecordDecisionValidation(t *testing.T) {
 	}{
 		{"empty request ID", "", "approved", "user", true},
 		{"empty decision", "req-1", "", "user", true},
-		{"valid", "req-1", "approved", "user", false},
-		{"valid denied", "req-2", "denied", "user", false},
+		{"valid approved but nil pool", "req-1", "approved", "user", true},
+		{"valid rejected but nil pool", "req-2", "rejected", "user", true},
+		{"invalid decision", "req-3", "unexpected", "user", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if s.pool == nil && !tt.wantErr {
-				t.Skip("skipping DB-dependent test with nil pool")
-			}
 			err := s.RecordDecision(context.Background(), tt.requestID, tt.decision, tt.approvedBy, "reason", time.Time{})
 			if tt.wantErr {
 				if err == nil {
@@ -138,3 +130,32 @@ func TestGetAndDecisionsValidation(t *testing.T) {
 
 // Ensure governance.ApprovalDecision type is used
 var _ = governance.ApprovalDecision{}
+
+func TestValidateDecisionEnum(t *testing.T) {
+	for _, decision := range []string{"pending", "approved", "rejected"} {
+		if err := validateDecision(decision); err != nil {
+			t.Errorf("validateDecision(%q) unexpected error: %v", decision, err)
+		}
+	}
+	for _, decision := range []string{"", "denied", "unknown", "APPROVED"} {
+		if err := validateDecision(decision); err == nil {
+			t.Errorf("validateDecision(%q) expected error", decision)
+		}
+	}
+}
+
+func TestNilPoolGuards(t *testing.T) {
+	var nilStore *Store
+	store := New(nil)
+	ctx := context.Background()
+	for name, s := range map[string]*Store{"nil receiver": nilStore, "nil pool": store} {
+		t.Run(name, func(t *testing.T) {
+			if err := s.Ping(ctx); err == nil { t.Fatal("Ping() expected error") }
+			if _, err := s.Evaluate(ctx, "req-1", "analysis_only", "read"); err == nil { t.Fatal("Evaluate() expected error") }
+			if err := s.RecordDecision(ctx, "req-1", "approved", "user", "reason", time.Time{}); err == nil { t.Fatal("RecordDecision() expected error") }
+			if _, ok := s.Get(ctx, "req-1"); ok { t.Fatal("Get() expected ok=false") }
+			if _, err := s.Decisions(ctx); err == nil { t.Fatal("Decisions() expected error") }
+			s.Close()
+		})
+	}
+}
