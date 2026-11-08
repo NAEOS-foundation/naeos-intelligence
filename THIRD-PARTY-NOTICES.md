@@ -6,6 +6,8 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 
 ## Resolved Go module inventory
 
+| Module | Resolved version | Detected license | License file | Upstream source |
+|---|---:|---|---|---|
 | filippo.io/edwards25519 | v1.1.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/filippo.io/edwards25519@v1.1.0 |
 | github.com/andybalholm/brotli | v1.1.1 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/andybalholm/brotli@v1.1.1 |
 | github.com/antlr4-go/antlr/v4 | v4.13.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/antlr4-go/antlr/v4@v4.13.0 |
@@ -92,9 +94,6 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 | modernc.org/sqlite | v1.34.1 | BSD-3-Clause | LICENSE | https://pkg.go.dev/modernc.org/sqlite@v1.34.1 |
 | modernc.org/strutil | v1.2.0 | BSD-3-Clause | LICENSE | https://pkg.go.dev/modernc.org/strutil@v1.2.0 |
 | modernc.org/token | v1.1.0 | BSD-3-Clause | LICENSE | https://pkg.go.dev/modernc.org/token@v1.1.0 |
-| Module | Resolved version | Detected license | License file | Upstream source |
-|---|---:|---|---|---|
-
 
 ## Regeneration and verification
 
