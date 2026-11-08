@@ -58,6 +58,12 @@ func run() error {
 	rp := runtime.NewProcessor(reg, tr)
 
 	var pool *pgxpool.Pool
+	validator, err := newOpenAPIValidator(cfg.OpenAPI.SpecPath)
+	if err != nil {
+		return fmt.Errorf("initialize OpenAPI validator: %w", err)
+	}
+
+	var store httpapi.Store
 	var closeStore func()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -66,7 +72,6 @@ func run() error {
 		}
 	} else {
 		startupCtx, startupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		var err error
 		pool, err = postgres.OpenPool(startupCtx, dsn)
 		startupCancel()
 		if err != nil {
@@ -89,7 +94,9 @@ func run() error {
 	} else {
 		store = httpapi.NewMemoryStore()
 	}
-	defer closeStore()
+	if closeStore != nil {
+		defer closeStore()
+	}
 
 	server := &http.Server{
 		Addr:              cfg.HTTP.Addr,
