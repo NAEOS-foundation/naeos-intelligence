@@ -148,7 +148,7 @@ func TestOrchestrator_Run_ContextCancelled(t *testing.T) {
 func TestOrchestrator_Run_WithProcessor(t *testing.T) {
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "test-provider"})
-	proc := runtime.NewProcessor(reg)
+	proc := runtime.NewProcessor(reg, nil)
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
@@ -174,7 +174,7 @@ func TestOrchestrator_Run_WithProcessor(t *testing.T) {
 func TestOrchestrator_Run_AllIntentsProposed(t *testing.T) {
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "eval-provider"})
-	proc := runtime.NewProcessor(reg)
+	proc := runtime.NewProcessor(reg, nil)
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()
@@ -233,7 +233,7 @@ func TestOrchestrator_Run_AllIntentsProposed(t *testing.T) {
 func TestOrchestrator_Run_Deterministic(t *testing.T) {
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "det-provider"})
-	proc := runtime.NewProcessor(reg)
+	proc := runtime.NewProcessor(reg, nil)
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()

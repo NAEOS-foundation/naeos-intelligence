@@ -6,6 +6,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/tool"
 )
 
 func TestProcessorAcceptsAnalysisOnlyRequestWithMatchingCapability(t *testing.T) {
@@ -13,7 +14,7 @@ func TestProcessorAcceptsAnalysisOnlyRequestWithMatchingCapability(t *testing.T)
 	if err := registry.Register(&testProvider{id: "mock-provider", active: true, capabilities: []string{"text_generation"}}); err != nil {
 		t.Fatalf("register error: %v", err)
 	}
-	processor := NewProcessor(registry)
+	processor := NewProcessor(registry, nil)
 	result, err := processor.Process("req-100", "review repo", "analysis_only", []string{"text_generation"})
 	if err != nil {
 		t.Fatalf("process error: %v", err)
@@ -31,7 +32,7 @@ func TestProcessorRejectsGovernedRequestBeforeProviderSelection(t *testing.T) {
 	if err := registry.Register(&testProvider{id: "mock-provider", active: true, capabilities: []string{"text_generation"}}); err != nil {
 		t.Fatalf("register error: %v", err)
 	}
-	processor := NewProcessor(registry)
+	processor := NewProcessor(registry, nil)
 	if _, err := processor.Process("req-101", "perform mutation", "governed", []string{"text_generation"}); err == nil {
 		t.Fatal("governed request should be rejected before provider selection")
 	}
@@ -43,7 +44,8 @@ func TestProcessorFlagsApprovalRequiredFromGovernanceWorkflow(t *testing.T) {
 		t.Fatalf("register error: %v", err)
 	}
 	workflow := governance.NewApprovalWorkflow()
-	processor := &Processor{Registry: registry, ApprovalWorkflow: workflow}
+	processor := NewProcessor(registry, nil)
+	processor.ApprovalWorkflow = workflow
 	result, err := processor.Process("req-approval", "perform mutation", "governed", []string{"text_generation"})
 	if err == nil {
 		t.Fatal("governed request should still be rejected in the MVP")
@@ -62,7 +64,7 @@ func TestProcessorGenerateUsesSelectedProvider(t *testing.T) {
 	if err := registry.Register(provider); err != nil {
 		t.Fatalf("register error: %v", err)
 	}
-	processor := NewProcessor(registry)
+	processor := NewProcessor(registry, nil)
 	resp, err := processor.Generate(context.Background(), "req-200", "review repo", "analysis_only", model.Request{ModelID: "demo-model", Prompt: "review repo"}, []string{"text_generation"})
 	if err != nil {
 		t.Fatalf("generate error: %v", err)
@@ -82,7 +84,7 @@ func TestProcessorSelectsDeterministicProviderWithoutRequiredCapabilities(t *tes
 			t.Fatalf("register %s: %v", id, err)
 		}
 	}
-	processor := NewProcessor(registry)
+	processor := NewProcessor(registry, nil)
 	result, err := processor.Process("req-201", "analyze context", "analysis_only", nil)
 	if err != nil {
 		t.Fatalf("process error: %v", err)
@@ -108,3 +110,51 @@ func (p *testProvider) Generate(ctx context.Context, req model.Request) (model.R
 }
 func (p *testProvider) HealthCheck(ctx context.Context) error { return nil }
 func (p *testProvider) Capabilities() []string                { return p.capabilities }
+
+type testToolForRuntime struct {
+	id      string
+	enabled bool
+	caps    []string
+}
+
+func (t *testToolForRuntime) ID() string   { return t.id }
+func (t *testToolForRuntime) Name() string { return t.id }
+func (t *testToolForRuntime) Execute(ctx context.Context, input map[string]any) (map[string]any, error) {
+	return map[string]any{"result": "ok"}, nil
+}
+func (t *testToolForRuntime) Validate(input map[string]any) error { return nil }
+func (t *testToolForRuntime) Spec() tool.ToolSpec {
+	return tool.ToolSpec{ID: t.id, Enabled: t.enabled, Capabilities: t.caps}
+}
+func (t *testToolForRuntime) Enabled() bool { return t.enabled }
+
+func TestProcessorValidateToolRegisteredAndEnabled(t *testing.T) {
+	toolRegistry := tool.NewRegistry()
+	tk := &testToolForRuntime{id: "scan-tool", enabled: true, caps: []string{"read"}}
+	if err := toolRegistry.Register(tk); err != nil {
+		t.Fatalf("register error: %v", err)
+	}
+	processor := NewProcessor(model.NewRegistry(), toolRegistry)
+	if err := processor.ValidateTool("scan-tool", []string{"read"}); err != nil {
+		t.Fatalf("validate tool error: %v", err)
+	}
+}
+
+func TestProcessorValidateToolNotRegistered(t *testing.T) {
+	processor := NewProcessor(model.NewRegistry(), tool.NewRegistry())
+	if err := processor.ValidateTool("nonexistent", nil); err == nil {
+		t.Fatal("expected error for not registered tool")
+	}
+}
+
+func TestProcessorValidateToolMissingCapability(t *testing.T) {
+	toolRegistry := tool.NewRegistry()
+	tk := &testToolForRuntime{id: "scan-tool", enabled: true, caps: []string{"read"}}
+	if err := toolRegistry.Register(tk); err != nil {
+		t.Fatalf("register error: %v", err)
+	}
+	processor := NewProcessor(model.NewRegistry(), toolRegistry)
+	if err := processor.ValidateTool("scan-tool", []string{"delete"}); err == nil {
+		t.Fatal("expected error for missing capability")
+	}
+}

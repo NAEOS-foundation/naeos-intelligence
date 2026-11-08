@@ -31,13 +31,13 @@ type PipelineResult struct {
 
 // Orchestrator coordinates classifier, context builder, planner, and runtime.
 type Orchestrator struct {
-	Classifier        classifier.Classifier
-	Context           intctx.Builder
-	Planner           planner.Planner
-	Processor         *runtime.Processor
-	Approval          *governance.ApprovalWorkflow
-	Audit             *governance.AuditLogger
-	EvidenceStore     *evidence.Store
+	Classifier         classifier.Classifier
+	Context            intctx.Builder
+	Planner            planner.Planner
+	Processor          *runtime.Processor
+	Approval           *governance.ApprovalWorkflow
+	Audit              *governance.AuditLogger
+	EvidenceStore      *evidence.Store
 	VerificationEngine *verification.Engine
 }
 

@@ -574,7 +574,7 @@ func TestAnalyzeEndpoint_RunPipeline(t *testing.T) {
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "test-provider"})
-	rp := runtime.NewProcessor(reg)
+	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
@@ -666,7 +666,7 @@ func TestAnalyzeEndpoint_WithGitHubResolver(t *testing.T) {
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "test-provider"})
-	rp := runtime.NewProcessor(reg)
+	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
@@ -738,7 +738,7 @@ func TestAnalyzeEndpoint_WithNAEOSCoreResolver(t *testing.T) {
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "test-provider"})
-	rp := runtime.NewProcessor(reg)
+	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}

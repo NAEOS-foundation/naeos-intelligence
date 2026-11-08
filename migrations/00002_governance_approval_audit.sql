@@ -1,16 +1,17 @@
 -- +goose Up
 CREATE TABLE approval_decisions (
     id UUID PRIMARY KEY,
-    request_id UUID NOT NULL UNIQUE REFERENCES intelligence_requests(id) ON DELETE RESTRICT,
+    request_id UUID NOT NULL REFERENCES intelligence_requests(id) ON DELETE RESTRICT,
     client_id TEXT NOT NULL CHECK (length(client_id) BETWEEN 1 AND 255),
     action TEXT NOT NULL CHECK (length(action) BETWEEN 1 AND 255),
-    execution_mode TEXT NOT NULL CHECK (execution_mode = 'governed'),
-    decision TEXT NOT NULL CHECK (decision IN ('approved', 'denied', 'rejected', 'pending')),
+    execution_mode TEXT NOT NULL CHECK (execution_mode IN ('analysis_only', 'governed')),
+    decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected', 'pending')),
     approved_by TEXT NOT NULL CHECK (length(approved_by) BETWEEN 1 AND 255),
     reason TEXT CHECK (reason IS NULL OR length(reason) <= 4000),
     correlation_id TEXT CHECK (correlation_id IS NULL OR length(correlation_id) <= 255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX approval_decisions_request_created_idx ON approval_decisions (request_id, created_at DESC, id DESC);
 CREATE INDEX approval_decisions_client_created_idx ON approval_decisions (client_id, created_at DESC);
 
 CREATE TABLE governance_audit_events (
@@ -37,7 +38,19 @@ CREATE TRIGGER governance_audit_events_no_update
     BEFORE UPDATE OR DELETE ON governance_audit_events
     FOR EACH ROW EXECUTE FUNCTION prevent_governance_audit_mutation();
 
+-- +goose StatementBegin
+CREATE FUNCTION prevent_approval_decision_mutation() RETURNS trigger
+LANGUAGE plpgsql AS 'BEGIN
+    RAISE EXCEPTION ''approval decisions are append-only'';
+END;';
+-- +goose StatementEnd
+CREATE TRIGGER approval_decisions_no_update
+    BEFORE UPDATE OR DELETE ON approval_decisions
+    FOR EACH ROW EXECUTE FUNCTION prevent_approval_decision_mutation();
+
 -- +goose Down
+DROP TRIGGER approval_decisions_no_update ON approval_decisions;
+DROP FUNCTION prevent_approval_decision_mutation();
 DROP TRIGGER governance_audit_events_no_update ON governance_audit_events;
 DROP FUNCTION prevent_governance_audit_mutation();
 DROP TABLE governance_audit_events;
