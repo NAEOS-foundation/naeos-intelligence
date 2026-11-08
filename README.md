@@ -263,7 +263,7 @@ Do not disclose vulnerabilities through public issues before they have been appr
 
 ## License
 
-The project license will be defined before the initial public release.
+NAEOS Intelligence is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
 
 ## Acknowledgments
 
