@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +19,41 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var requestIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}// Package approval provides durable PostgreSQL-backed persistence for
+// governed approval decisions. It implements the same decision contract as
+// governance.ApprovalWorkflow but stores records durably in the
+// approval_decisions table.
+package approval
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+)
+
+// validateRequestID rejects malformed UUIDs before PostgreSQL casts or queries.
+func validateRequestID(requestID string) error {
+	if strings.TrimSpace(requestID) == "" {
+		return errors.New("request_id is required")
+	}
+	if !requestIDPattern.MatchString(requestID) {
+		return errors.New("request_id must be a valid UUID")
+	}
+	return nil
+}
 
 // Store persists approval decisions to PostgreSQL.
 type Store struct {
@@ -52,8 +88,8 @@ func (s *Store) Ping(ctx context.Context) error {
 func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action string) (governance.ApprovalDecision, error) {
 	trimmedMode := strings.TrimSpace(executionMode)
 	trimmedAction := strings.TrimSpace(action)
-	if strings.TrimSpace(requestID) == "" {
-		return governance.ApprovalDecision{}, errors.New("request_id is required")
+	if err := validateRequestID(requestID); err != nil {
+		return governance.ApprovalDecision{}, err
 	}
 	if trimmedAction == "" {
 		return governance.ApprovalDecision{}, errors.New("action is required")
@@ -78,6 +114,9 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 	`, requestID).Scan(&existing.Action, &existing.ExecutionMode, &existing.Decision,
 		&existing.ApprovedBy, &existing.Reason, &existing.CreatedAt)
 	if err == nil {
+		if existing.Action != trimmedAction || existing.ExecutionMode != trimmedMode {
+			return governance.ApprovalDecision{}, errors.New("request_id is already bound to a different action or execution_mode")
+		}
 		existing.RequestID = requestID
 		existing.ApprovalRequired = existing.Decision == "pending"
 		existing.CreatedAt = existing.CreatedAt.UTC()
@@ -119,8 +158,8 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 // RecordDecision appends a human or system decision for a request. Existing
 // records are never mutated; the latest row represents the current decision.
 func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approvedBy, reason string, at time.Time) error {
-	if strings.TrimSpace(requestID) == "" {
-		return errors.New("request_id is required")
+	if err := validateRequestID(requestID); err != nil {
+		return err
 	}
 	decision = strings.TrimSpace(decision)
 	if err := validateDecision(decision); err != nil {
@@ -133,33 +172,62 @@ func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approve
 	if approvedBy == "" {
 		return errors.New("approved_by is required")
 	}
+	if len(approvedBy) > 255 {
+		return errors.New("approved_by must be at most 255 characters")
+	}
 	reason = strings.TrimSpace(reason)
+	if len(reason) > 4000 {
+		return errors.New("reason must be at most 4000 characters")
+	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin decision transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Serialize decisions per request even when no row exists yet.
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", requestID); err != nil {
+		return fmt.Errorf("lock request decision: %w", err)
+	}
+
 	action, executionMode := "system", "governed"
-	var existingAction, existingMode string
-	err := s.pool.QueryRow(ctx, `
-		SELECT action, execution_mode FROM approval_decisions
+	var existingAction, existingMode, existingDecision string
+	err = tx.QueryRow(ctx, `
+		SELECT action, execution_mode, decision FROM approval_decisions
 		WHERE request_id=$1::uuid ORDER BY created_at DESC, id DESC LIMIT 1
-	`, requestID).Scan(&existingAction, &existingMode)
+	`, requestID).Scan(&existingAction, &existingMode, &existingDecision)
 	if err == nil {
 		action, executionMode = existingAction, existingMode
+		if existingDecision != "pending" {
+			return fmt.Errorf("cannot record decision %q: request is already in terminal state %q", decision, existingDecision)
+		}
+		if decision == "pending" {
+			return errors.New("cannot transition pending decision to pending")
+		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("query existing decision: %w", err)
+	} else if decision != "pending" {
+		return errors.New("initial decision must be pending")
 	}
+
 	id, err := newUUID()
 	if err != nil {
 		return fmt.Errorf("generate decision id: %w", err)
 	}
-	_, err = s.pool.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		INSERT INTO approval_decisions
 			(id, request_id, client_id, action, execution_mode, decision, approved_by, reason, created_at)
 		VALUES ($1,$2::uuid,'system',$3,$4,$5,$6,$7,$8)`,
 		id, requestID, action, executionMode, decision, approvedBy, nullIfBlank(reason), at.UTC())
 	if err != nil {
 		return fmt.Errorf("insert decision: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit decision: %w", err)
 	}
 	return nil
 }
