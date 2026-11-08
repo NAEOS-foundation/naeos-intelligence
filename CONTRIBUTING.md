@@ -56,4 +56,4 @@ CI is the source of truth for required automated gates. Do not commit, push, mer
 
 ## License
 
-The repository license remains undecided; do not assume or add a license without maintainer approval.
+NAEOS Intelligence is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text. Third-party dependencies remain subject to their respective license terms and notices; verify those separately when redistributing the project.
