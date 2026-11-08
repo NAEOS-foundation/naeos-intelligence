@@ -93,6 +93,8 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 | modernc.org/strutil | v1.2.0 | BSD-3-Clause | LICENSE | https://pkg.go.dev/modernc.org/strutil@v1.2.0 |
 | modernc.org/token | v1.1.0 | BSD-3-Clause | LICENSE | https://pkg.go.dev/modernc.org/token@v1.1.0 |
 | Module | Resolved version | Detected license | License file | Upstream source |
+|---|---:|---|---|---|
+
 
 ## Regeneration and verification
 
