@@ -162,15 +162,20 @@ func TestNilPoolGuards(t *testing.T) {
 	for name, s := range map[string]*Store{"nil receiver": nilStore, "nil pool": store} {
 		t.Run(name, func(t *testing.T) {
 			if err := s.Ping(ctx); err == nil {
-				t.Fatal("Ping() expected error")\n\t\t\t}
+				t.Fatal("Ping() expected error")
+			}
 			if _, err := s.Evaluate(ctx, "req-1", "analysis_only", "read"); err == nil {
-				t.Fatal("Evaluate() expected error")\n\t\t\t}
+				t.Fatal("Evaluate() expected error")
+			}
 			if err := s.RecordDecision(ctx, "req-1", "approved", "user", "reason", time.Time{}); err == nil {
-				t.Fatal("RecordDecision() expected error")\n\t\t\t}
+				t.Fatal("RecordDecision() expected error")
+			}
 			if _, ok := s.Get(ctx, "req-1"); ok {
-				t.Fatal("Get() expected ok=false")\n\t\t\t}
+				t.Fatal("Get() expected ok=false")
+			}
 			if _, err := s.Decisions(ctx); err == nil {
-				t.Fatal("Decisions() expected error")\n\t\t\t}
+				t.Fatal("Decisions() expected error")
+			}
 			s.Close()
 		})
 	}
