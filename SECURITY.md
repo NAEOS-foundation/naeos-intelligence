@@ -8,7 +8,9 @@ NAEOS Intelligence is in pre-release (MVP foundation) status. No versions are cu
 
 **Do not disclose suspected vulnerabilities in public issues, pull requests, discussions, or social media before coordinated assessment.**
 
-Use GitHub's **Private vulnerability reporting** feature for this repository if enabled (repository **Security** tab → **Report a vulnerability**). If this feature is unavailable, contact repository maintainers to establish an appropriate private reporting channel. Do not post exploit details publicly while awaiting a private channel.
+Use GitHub's **Private vulnerability reporting** feature for this repository (repository **Security** tab → **Report a vulnerability**) when it is enabled.
+
+If GitHub Private vulnerability reporting is unavailable, **do not submit sensitive vulnerability details through public channels**. Maintainers must enable GitHub Private vulnerability reporting or establish and publish a verified private reporting channel before soliciting sensitive reports. This policy does not currently specify an alternate private contact.
 
 A report should include, when safe:
 
@@ -57,4 +59,4 @@ No specific disclosure date or bounty program is implied.
 
 ## Policy status
 
-Private reporting instructions depend on GitHub Private vulnerability reporting being enabled or maintainers establishing a private channel. Response targets above are proposed. Maintainers should confirm the reporting channel, response targets, and disclosure process before treating them as accepted policy.
+GitHub Private vulnerability reporting must be enabled, or a verified private reporting channel must be established and published, before sensitive reports are solicited. Response targets above are proposed and require maintainer acceptance. Maintainers should confirm the reporting channel, response targets, and disclosure process before treating them as accepted policy.
