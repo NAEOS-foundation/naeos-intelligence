@@ -53,7 +53,7 @@ def main():
         license_id = classify(found.read_text(errors="replace")) if found else "UNKNOWN (license file not found)"
         if license_id.startswith("UNKNOWN") or "review required" in license_id:
             print(f"License review required: {path}@{version}: {license_id}", file=sys.stderr)
-        link = f"https://{path}/tree/{version}/" if version != "(main module)" else "—"
+        link = f"https://pkg.go.dev/{path}@{version}" if version != "(main module)" else "—"
         license_file = found.name if found else "Not found in module cache"
         rows.append(f"| {path} | {version} | {license_id} | {license_file} | {link} |")
 
