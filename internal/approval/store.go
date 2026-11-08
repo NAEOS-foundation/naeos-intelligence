@@ -47,10 +47,8 @@ func (s *Store) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Evaluate determines whether a request needs approval. If a decision already
-// exists for the request ID, it is returned; otherwise a new pending decision
-// is created for governed execution mode or an auto-approved decision for
-// analysis_only mode.
+// Evaluate determines whether a request needs approval. The latest decision
+// is returned when one exists; otherwise a new decision is appended.
 func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action string) (governance.ApprovalDecision, error) {
 	trimmedMode := strings.TrimSpace(executionMode)
 	trimmedAction := strings.TrimSpace(action)
@@ -63,47 +61,35 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 	if trimmedMode == "" {
 		trimmedMode = "analysis_only"
 	}
-
-	// Validate mode before any DB access
 	switch trimmedMode {
 	case "analysis_only", "governed":
 	default:
 		return governance.ApprovalDecision{}, fmt.Errorf("unsupported execution_mode %q", executionMode)
 	}
-
 	if s == nil || s.pool == nil {
 		return governance.ApprovalDecision{}, errors.New("approval store database pool is nil")
 	}
 
-	// Check for existing decision
-	var existingDecision, existingAction, existingMode, existingApprovedBy, existingReason string
-	var existingCreatedAt time.Time
+	var existing governance.ApprovalDecision
 	err := s.pool.QueryRow(ctx, `
-		SELECT decision, action, execution_mode, approved_by, reason, created_at
+		SELECT action, execution_mode, decision, approved_by, reason, created_at
 		FROM approval_decisions WHERE request_id=$1::uuid
-	`, requestID).Scan(&existingDecision, &existingAction, &existingMode, &existingApprovedBy, &existingReason, &existingCreatedAt)
+		ORDER BY created_at DESC, id DESC LIMIT 1
+	`, requestID).Scan(&existing.Action, &existing.ExecutionMode, &existing.Decision,
+		&existing.ApprovedBy, &existing.Reason, &existing.CreatedAt)
 	if err == nil {
-		return governance.ApprovalDecision{
-			RequestID:        requestID,
-			Action:           existingAction,
-			ExecutionMode:    existingMode,
-			Decision:         existingDecision,
-			ApprovedBy:       existingApprovedBy,
-			Reason:           existingReason,
-			ApprovalRequired: existingDecision == "pending",
-			CreatedAt:        existingCreatedAt.UTC(),
-		}, nil
+		existing.RequestID = requestID
+		existing.ApprovalRequired = existing.Decision == "pending"
+		existing.CreatedAt = existing.CreatedAt.UTC()
+		return existing, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return governance.ApprovalDecision{}, fmt.Errorf("query existing decision: %w", err)
 	}
 
-	// No existing decision; create one based on execution mode
 	decision := governance.ApprovalDecision{
-		RequestID:     requestID,
-		Action:        trimmedAction,
-		ExecutionMode: trimmedMode,
-		CreatedAt:     time.Now().UTC(),
+		RequestID: requestID, Action: trimmedAction, ExecutionMode: trimmedMode,
+		CreatedAt: time.Now().UTC(),
 	}
 	switch trimmedMode {
 	case "analysis_only":
@@ -115,12 +101,10 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 		decision.ApprovalRequired = true
 		decision.Reason = "governed execution requires a separately approved approval flow"
 	}
-
 	id, err := newUUID()
 	if err != nil {
 		return governance.ApprovalDecision{}, fmt.Errorf("generate decision id: %w", err)
 	}
-
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO approval_decisions
 			(id, request_id, client_id, action, execution_mode, decision, approved_by, reason)
@@ -129,11 +113,11 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 	if err != nil {
 		return governance.ApprovalDecision{}, fmt.Errorf("insert decision: %w", err)
 	}
-
 	return decision, nil
 }
 
-// RecordDecision records or updates a human or system decision for a request.
+// RecordDecision appends a human or system decision for a request. Existing
+// records are never mutated; the latest row represents the current decision.
 func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approvedBy, reason string, at time.Time) error {
 	if strings.TrimSpace(requestID) == "" {
 		return errors.New("request_id is required")
@@ -146,72 +130,57 @@ func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approve
 		return errors.New("approval store database pool is nil")
 	}
 	approvedBy = strings.TrimSpace(approvedBy)
+	if approvedBy == "" {
+		return errors.New("approved_by is required")
+	}
 	reason = strings.TrimSpace(reason)
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 
-	// Check if a decision already exists
-	var existingDecision string
-	err := s.pool.QueryRow(ctx, `SELECT decision FROM approval_decisions WHERE request_id=$1::uuid`, requestID).Scan(&existingDecision)
-	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("query existing decision: %w", err)
-		}
-		// No existing decision; insert new
-		id, idErr := newUUID()
-		if idErr != nil {
-			return fmt.Errorf("generate decision id: %w", idErr)
-		}
-		_, err = s.pool.Exec(ctx, `
-			INSERT INTO approval_decisions
-				(id, request_id, client_id, action, execution_mode, decision, approved_by, reason, created_at)
-			VALUES ($1,$2::uuid,'system','system','governed',$3,$4,$5,$6)`,
-			id, requestID, decision, approvedBy, reason, at.UTC())
-		if err != nil {
-			return fmt.Errorf("insert decision: %w", err)
-		}
-		return nil
+	action, executionMode := "system", "governed"
+	var existingAction, existingMode string
+	err := s.pool.QueryRow(ctx, `
+		SELECT action, execution_mode FROM approval_decisions
+		WHERE request_id=$1::uuid ORDER BY created_at DESC, id DESC LIMIT 1
+	`, requestID).Scan(&existingAction, &existingMode)
+	if err == nil {
+		action, executionMode = existingAction, existingMode
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("query existing decision: %w", err)
 	}
-
-	// Existing decision; update it
-	_, err = s.pool.Exec(ctx, `
-		UPDATE approval_decisions
-		SET decision=$1, approved_by=$2, reason=$3, created_at=$4
-		WHERE request_id=$5::uuid`,
-		decision, approvedBy, nullIfBlank(reason), at.UTC(), requestID)
+	id, err := newUUID()
 	if err != nil {
-		return fmt.Errorf("update decision: %w", err)
+		return fmt.Errorf("generate decision id: %w", err)
+	}
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO approval_decisions
+			(id, request_id, client_id, action, execution_mode, decision, approved_by, reason, created_at)
+		VALUES ($1,$2::uuid,'system',$3,$4,$5,$6,$7,$8)`,
+		id, requestID, action, executionMode, decision, approvedBy, nullIfBlank(reason), at.UTC())
+	if err != nil {
+		return fmt.Errorf("insert decision: %w", err)
 	}
 	return nil
 }
 
-// Get returns a recorded decision for a request ID if it exists.
+// Get returns the latest recorded decision for a request ID if it exists.
 func (s *Store) Get(ctx context.Context, requestID string) (governance.ApprovalDecision, bool) {
 	if strings.TrimSpace(requestID) == "" || s == nil || s.pool == nil {
 		return governance.ApprovalDecision{}, false
 	}
 	var d governance.ApprovalDecision
-	var action, mode, decision, approvedBy, reason string
-	var createdAt time.Time
 	err := s.pool.QueryRow(ctx, `
 		SELECT action, execution_mode, decision, approved_by, reason, created_at
-		FROM approval_decisions WHERE request_id=$1::uuid`, requestID).
-		Scan(&action, &mode, &decision, &approvedBy, &reason, &createdAt)
+		FROM approval_decisions WHERE request_id=$1::uuid
+		ORDER BY created_at DESC, id DESC LIMIT 1`, requestID).
+		Scan(&d.Action, &d.ExecutionMode, &d.Decision, &d.ApprovedBy, &d.Reason, &d.CreatedAt)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return governance.ApprovalDecision{}, false
-		}
 		return governance.ApprovalDecision{}, false
 	}
 	d.RequestID = requestID
-	d.Action = action
-	d.ExecutionMode = mode
-	d.Decision = decision
-	d.ApprovedBy = approvedBy
-	d.Reason = reason
-	d.ApprovalRequired = decision == "pending"
-	d.CreatedAt = createdAt.UTC()
+	d.ApprovalRequired = d.Decision == "pending"
+	d.CreatedAt = d.CreatedAt.UTC()
 	return d, true
 }
 
@@ -222,8 +191,7 @@ func (s *Store) Decisions(ctx context.Context) ([]governance.ApprovalDecision, e
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT request_id::text, action, execution_mode, decision, approved_by, reason, created_at
-		FROM approval_decisions
-		ORDER BY created_at ASC`)
+		FROM approval_decisions ORDER BY created_at ASC, id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("query decisions: %w", err)
 	}
@@ -232,24 +200,23 @@ func (s *Store) Decisions(ctx context.Context) ([]governance.ApprovalDecision, e
 	var items []governance.ApprovalDecision
 	for rows.Next() {
 		var d governance.ApprovalDecision
-		var action, mode, decision, approvedBy, reason string
-		var createdAt time.Time
-		if err := rows.Scan(&d.RequestID, &action, &mode, &decision, &approvedBy, &reason, &createdAt); err != nil {
+		if err := rows.Scan(&d.RequestID, &d.Action, &d.ExecutionMode, &d.Decision,
+			&d.ApprovedBy, &d.Reason, &d.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan decision: %w", err)
 		}
-		d.Action = action
-		d.ExecutionMode = mode
-		d.Decision = decision
-		d.ApprovedBy = approvedBy
-		d.Reason = reason
-		d.ApprovalRequired = decision == "pending"
-		d.CreatedAt = createdAt.UTC()
+		d.ApprovalRequired = d.Decision == "pending"
+		d.CreatedAt = d.CreatedAt.UTC()
 		items = append(items, d)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate decisions: %w", err)
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			return items[i].RequestID < items[j].RequestID
+		}
+		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	})
 	return items, nil
 }
 
