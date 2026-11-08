@@ -9,10 +9,11 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 | Module | Resolved version | Detected license | License file | Upstream source |
 |---|---:|---|---|---|
 | filippo.io/edwards25519 | v1.1.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/filippo.io/edwards25519@v1.1.0 |
-| github.com/andybalholm/brotli | v1.1.1 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/andybalholm/brotli@v1.1.1 |
-| github.com/antlr4-go/antlr/v4 | v4.13.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/antlr4-go/antlr/v4@v4.13.0 |
 | github.com/ClickHouse/ch-go | v0.61.5 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/ClickHouse/ch-go@v0.61.5 |
 | github.com/ClickHouse/clickhouse-go/v2 | v2.30.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/ClickHouse/clickhouse-go/v2@v2.30.0 |
+| github.com/NAEOS-foundation/naeos-intelligence | (main module) | Apache-2.0 | LICENSE | — |
+| github.com/andybalholm/brotli | v1.1.1 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/andybalholm/brotli@v1.1.1 |
+| github.com/antlr4-go/antlr/v4 | v4.13.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/antlr4-go/antlr/v4@v4.13.0 |
 | github.com/coder/websocket | v1.8.12 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/coder/websocket@v1.8.12 |
 | github.com/davecgh/go-spew | v1.1.1 | UNKNOWN (manual review required) | LICENSE | https://pkg.go.dev/github.com/davecgh/go-spew@v1.1.1 |
 | github.com/dlclark/regexp2 | v1.11.0 | MIT | LICENSE | https://pkg.go.dev/github.com/dlclark/regexp2@v1.11.0 |
@@ -47,7 +48,6 @@ This inventory is generated from the resolved Go module graph using `go list -m 
 | github.com/mfridman/interpolate | v0.0.2 | MIT | LICENSE.txt | https://pkg.go.dev/github.com/mfridman/interpolate@v0.0.2 |
 | github.com/mfridman/xflag | v0.1.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/mfridman/xflag@v0.1.0 |
 | github.com/microsoft/go-mssqldb | v1.8.0 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/microsoft/go-mssqldb@v1.8.0 |
-| github.com/NAEOS-foundation/naeos-intelligence | (main module) | Apache-2.0 | LICENSE | — |
 | github.com/ncruces/go-strftime | v0.1.9 | MIT | LICENSE | https://pkg.go.dev/github.com/ncruces/go-strftime@v0.1.9 |
 | github.com/oasdiff/yaml | v0.1.1 | MIT | LICENSE | https://pkg.go.dev/github.com/oasdiff/yaml@v0.1.1 |
 | github.com/oasdiff/yaml3 | v0.0.14 | Apache-2.0 | LICENSE | https://pkg.go.dev/github.com/oasdiff/yaml3@v0.0.14 |
