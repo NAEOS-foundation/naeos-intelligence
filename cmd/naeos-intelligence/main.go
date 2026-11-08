@@ -21,6 +21,7 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/tool"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/verification"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -53,15 +54,10 @@ func run() error {
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
-	rp := runtime.NewProcessor(reg)
+	tr := tool.NewRegistry()
+	rp := runtime.NewProcessor(reg, tr)
 
 	var pool *pgxpool.Pool
-	validator, err := newOpenAPIValidator(cfg.OpenAPI.SpecPath)
-	if err != nil {
-		return fmt.Errorf("initialize OpenAPI validator: %w", err)
-	}
-
-	var store httpapi.Store
 	var closeStore func()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {

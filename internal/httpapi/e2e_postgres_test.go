@@ -78,7 +78,7 @@ func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "e2e-provider"})
-	rp := runtime.NewProcessor(reg)
+	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), orch), store
 }

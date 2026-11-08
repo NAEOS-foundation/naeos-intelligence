@@ -2,35 +2,39 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/policy"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/tool"
 )
 
 // Result is the bounded decision produced by the runtime gate.
 type Result struct {
 	RequestID        string `json:"request_id"`
 	ProviderID       string `json:"provider_id,omitempty"`
+	ToolID           string `json:"tool_id,omitempty"`
 	Allowed          bool   `json:"allowed"`
 	ApprovalRequired bool   `json:"approval_required"`
 	Reason           string `json:"reason,omitempty"`
 }
 
-// Processor is the runtime boundary that validates a request and selects a compatible provider.
+// Processor is the runtime boundary that validates a request and selects a compatible provider or tool.
 type Processor struct {
 	Registry         *model.Registry
+	ToolRegistry     *tool.Registry
 	ApprovalWorkflow *governance.ApprovalWorkflow
 }
 
 // NewProcessor creates a safe runtime processor for the read-only MVP.
-func NewProcessor(registry *model.Registry) *Processor {
+func NewProcessor(registry *model.Registry, toolRegistry *tool.Registry) *Processor {
 	if registry == nil {
 		registry = model.NewRegistry()
 	}
-	return &Processor{Registry: registry}
+	return &Processor{Registry: registry, ToolRegistry: toolRegistry}
 }
 
 // Process evaluates the request against policy and provider capability constraints.
@@ -82,4 +86,21 @@ func (p *Processor) Generate(ctx context.Context, requestID, purpose, executionM
 		return model.Response{}, err
 	}
 	return provider.Generate(ctx, req)
+}
+
+// ValidateTool validates a tool against the tool registry for governed execution.
+func (p *Processor) ValidateTool(toolID string, requiredCapabilities []string) error {
+	if p == nil || p.ToolRegistry == nil {
+		return fmt.Errorf("tool registry is not configured")
+	}
+	if toolID == "" {
+		return errors.New("tool id is required")
+	}
+	if err := p.ToolRegistry.Validate(toolID); err != nil {
+		return err
+	}
+	if err := p.ToolRegistry.ValidateCapabilities(toolID, requiredCapabilities); err != nil {
+		return err
+	}
+	return nil
 }
