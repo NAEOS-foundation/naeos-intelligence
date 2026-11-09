@@ -28,7 +28,7 @@ This snapshot tracks repository work, not milestone acceptance or Early Access a
 |---|---|---|
 | M0 — Documentation and Acceptance Alignment | Baseline documentation reconciliation completed; formal spec acceptance remains open | PR #23 aligned target lifecycle with MVP scope, completed normalized error properties/mapping, and clarified JWT/JWKS implementation versus deployment IAM decisions. The specifications remain Draft/Proposed until maintainer acceptance. |
 | M1 — API Contract and Lifecycle Reliability | **Accepted** for bounded read-only API/lifecycle contract | The maintainer approved M1 on 2026-11-10. PR #67 commit `7348307` passed CI run #248, including PostgreSQL 16 integration, dependency/security scans, vet, tests, and build. No partner or in-repository consumer is known; external inventory is unavailable and compatibility must be revisited before onboarding/release if a consumer is identified. Deployment-level IAM/JWKS validation remains open; worker-running cancellation behavior is deferred to M3. |
-| M2 — IAM Decision and Security Hardening | Partially unblocked for provider-neutral planning; provider-specific work not started | ADR-0003 accepts a single logical tenant per deployment for MVP and defers IAM-07. IAM-01–05 and IAM-08–14 remain owner/security decisions; no production IAM acceptance is inferred. |
+| M2 — IAM Decision and Security Hardening | Partially unblocked; read-only API authorization subset accepted; provider-specific work not started | ADR-0003 accepts the single-tenant deployment boundary; ADR-0004 accepts scopes plus owner checks, in-process validated identity propagation, and read-only API denial behavior. IAM-01–05, IAM-10–11, and IAM-14 remain open; no production IAM acceptance is inferred. |
 | M3 — Runtime and Worker Foundation | Not started | Requires accepted lifecycle/API contracts and approved scope. |
 | M4 — Policy and Governance Enforcement | Not started | Requires accepted policy/IAM decisions; no side-effect execution enabled. |
 | M5 — Early Access Readiness | Not started | Requires completion of prior milestones and explicit security/maintainer/operational sign-off. |
@@ -36,7 +36,7 @@ This snapshot tracks repository work, not milestone acceptance or Early Access a
 ### Immediate next work
 
 1. Continue M2 IAM decisions; revisit external consumer compatibility if a consumer is identified before onboarding or release.
-2. Keep deployment-level IAM/JWKS validation and IAM-01–05 / IAM-08–14 owner/security decisions as explicit M2 blockers. Reopen IAM-06/07 only if shared tenancy becomes a requirement.
+2. Keep deployment-level IAM/JWKS validation and IAM-01–05 / IAM-10–11 / IAM-14 as explicit M2 blockers. Reopen IAM-06/07 only if shared tenancy becomes a requirement.
 3. Defer worker-running lifecycle/cancellation propagation tests until M3; do not treat current accepted/cancelled PostgreSQL integration coverage as worker-runtime evidence.
 4. Refresh this snapshot after PR #67 and subsequent reviewed changes merge; do not infer Early Access approval from M1 acceptance.
 
