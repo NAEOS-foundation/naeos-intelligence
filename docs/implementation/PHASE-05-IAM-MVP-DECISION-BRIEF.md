@@ -3,9 +3,9 @@
 **Document ID:** NAEOS-INT-IAM-BRIEF-001  
 **Version:** 0.1.0  
 **Status:** Draft for maintainer decision — not an accepted ADR  
-**Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
+**Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`, [ADR-0003](../adr/20261110-single-tenant-mvp-baseline.md)
 
-> This brief provides options and provisional recommendations for discussion. It does not close IAM decision items, authorize provider-specific implementation, or replace an accepted ADR. A maintainer must explicitly accept or amend the decisions and record rationale.
+> This brief provides options and provisional recommendations for the remaining IAM decisions. The MVP tenancy baseline is recorded in accepted ADR-0003; that decision does not close other IAM items or authorize provider-specific implementation.
 
 ## 1. Decision objective
 
@@ -70,9 +70,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 | Tenant-scoped deployment | Clear tenant partitioning | Requires explicit tenant identity, binding, persistence and operational controls |
 | Shared claims-based multi-tenancy | Efficient shared operations | Highest risk/cost: cross-tenant authorization, registry, migration, incident and test burden |
 
-**Provisional recommendation:** Do not enable shared multi-tenancy by default for MVP. Prefer single-tenant deployment or an explicitly isolated tenant boundary based on the early-access deployment model. If shared tenancy is selected, require a trusted server-side client-to-tenant binding, persistence-level tenant scoping, and cross-tenant integration tests before acceptance. Never accept tenant identity solely from request body or caller-controlled headers.
-
-**Maintainer decision:** Open.
+**Maintainer decision:** Accepted for MVP baseline by ADR-0003: one logical tenant per deployment; no shared claims-based multi-tenancy or tenant identity from caller-controlled input. IAM-07 tenant claim and binding work is deferred until a shared-tenancy requirement exists.
 
 ### IAM-08 / IAM-09 — Authorization vocabulary and resource ownership
 
@@ -116,9 +114,9 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 ## 4. Suggested acceptance sequence
 
-1. Maintainer confirms early-access deployment model (isolated/single-tenant versus shared multi-tenant) and partner identity requirements.
-2. Accept IAM-01 through IAM-03 (protocol, issuer, trust boundaries).
-3. Accept IAM-04 through IAM-09 (actor/client/tenant and authorization semantics).
+1. Keep the accepted single-tenant logical boundary for MVP; reopen it only if a partner or deployment requirement calls for shared tenancy.
+2. Accept IAM-01 through IAM-03 (protocol, issuer, trust boundaries) after a partner/deployment model is known.
+3. Accept IAM-04, IAM-05, and IAM-08 through IAM-09 (actor/client and authorization semantics).
 4. Accept IAM-10 through IAM-14 (validation, lifecycle, propagation, denial, audit).
 5. Record rationale and date in the worksheet and create accepted ADR(s).
 6. Align API Contract, Security Requirements, Data Model, traceability matrix, and Phase 5 implementation prompt.
@@ -128,7 +126,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 Maintainer input is required for these questions; this document intentionally does not answer them on the maintainer's behalf:
 
-- Will early access be isolated deployment per partner or a shared service?
+- Does a future partner or deployment requirement require shared tenancy? If so, reopen IAM-06/07 before implementation.
 - Which IdP/issuer must the first partner integration use, if already known?
 - Are callers exclusively machine-to-machine, or will human users act through clients?
 - Is rapid token revocation required beyond short-lived tokens and key rotation?
@@ -138,8 +136,8 @@ Maintainer input is required for these questions; this document intentionally do
 
 | Decision group | Maintainer outcome | Rationale / ADR | Date |
 |---|---|---|---|
-| IAM-01–03 | Pending | Pending | Pending |
-| IAM-04–05 | Pending | Pending | Pending |
-| IAM-06–07 | Pending | Pending | Pending |
+| IAM-01–05 | Pending | Partner and caller model not yet known | Pending |
+| IAM-06 | Accepted for MVP baseline | ADR-0003 | 2026-11-10 |
+| IAM-07 | Deferred for MVP | No tenant identity in the single-tenant baseline; reopen before shared tenancy | 2026-11-10 |
 | IAM-08–09 | Pending | Pending | Pending |
 | IAM-10–14 | Pending | Pending | Pending |

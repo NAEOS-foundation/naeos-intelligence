@@ -7,9 +7,21 @@
 
 ## 1. Decision gate
 
-The Phase 5 Copilot prompt explicitly instructs implementers not to select an IdP or token format while unresolved. Therefore Phase 5 implementation must remain limited to provider-neutral interfaces and test scaffolding until the decisions below are accepted. A green test suite does not substitute for decision acceptance.
+The Phase 5 Copilot prompt explicitly instructs implementers not to select an IdP or token format while unresolved. The repository already contains a concrete RS256/JWKS verifier scaffold; its presence does not accept its identity semantics or authorize provider-specific deployment configuration. Further provider-specific IAM work must remain gated until the decisions below are accepted. A green test suite does not substitute for decision acceptance.
 
-## 2. Decision register
+## 2. Existing verifier evidence (not an IAM decision)
+
+Static inspection of `internal/httpapi/jwks_verifier.go` found the following current behavior. This records implementation facts only and does not establish that the behavior is the accepted target:
+
+- Requires HTTPS issuer and JWKS URL configuration, RS256 tokens, a trusted `kid`, valid signature, exact issuer, matching audience, and unexpired `exp`; a future non-zero `nbf` is rejected.
+- Refreshes cached JWKS data after five minutes or immediately when a token presents an unknown `kid`; JWKS requests have a five-second client timeout and a one-megabyte response limit. Lookup and fetch failures reject the token.
+- Uses `client_id` as `Principal.ClientID`, falling back to `sub` when `client_id` is blank. If both are present but differ, `client_id` wins.
+- Accepts both space-delimited `scope` and array-valued `scopes`, combining their entries. Scope vocabulary and claim precedence have not been accepted.
+- Does not validate `iat`, impose a maximum token lifetime, or implement token revocation/introspection. Tenant identity and server-side client-to-tenant binding are not represented; this is consistent with the accepted single-tenant MVP baseline and must be revisited only if shared tenancy is introduced.
+
+The remaining token and identity-semantic gaps depend on IAM-01–05 and IAM-08–14. Do not resolve them by silently changing verifier behavior before the relevant decisions and contract updates are accepted. Reopen IAM-07 if shared tenancy becomes a requirement.
+
+## 3. Decision register
 
 | ID | Decision | Options to evaluate | Recommended evaluation criteria | State |
 |---|---|---|---|---|
@@ -18,8 +30,8 @@ The Phase 5 Copilot prompt explicitly instructs implementers not to select an Id
 | IAM-03 | Issuer and audience policy | Single pinned issuer/audience; allowlisted multi-issuer/audience | trust boundary, client separation, environment separation | Open |
 | IAM-04 | Principal canonicalization | Map validated `iss + sub` to principal; alternate stable provider subject mapping | uniqueness, stability, collision avoidance, attribution | Open |
 | IAM-05 | Client identity semantics | Separate OAuth client identifier from end-user principal; service principal for machine clients | clear attribution and distinction between acting client and actor | Open |
-| IAM-06 | Tenant applicability and source of truth | Single-tenant MVP; tenant-scoped deployment; claims-based multi-tenancy | early-access operating model, isolation requirements, schema migration cost | Open |
-| IAM-07 | Tenant claim and ownership binding | Trusted claim mapped to canonical tenant ID; server-side client/tenant registry; combination | prevent tenant claim spoofing and mismatched client/tenant bindings | Open |
+| IAM-06 | Tenant applicability and source of truth | Single-tenant logical boundary per deployment for MVP; shared claims-based tenancy deferred | early-access operating model, isolation requirements, schema migration cost | Accepted for MVP by ADR-0003 |
+| IAM-07 | Tenant claim and ownership binding | No tenant claim or caller-supplied tenant ID in the single-tenant MVP; revisit before shared tenancy | prevent tenant claim spoofing and mismatched client/tenant bindings | Deferred; not applicable to current baseline |
 | IAM-08 | Authorization vocabulary | Roles; capabilities/scopes; resource ownership checks; layered model | least privilege, ease of audit, explicit operation mapping | Open |
 | IAM-09 | Resource ownership semantics | Owner client; principal; tenant; mixed explicit ownership policy | request/result access control and consistent persistence enforcement | Open |
 | IAM-10 | Token validation requirements | Signature algorithm allowlist; JWKS key selection; issuer/audience; exp/nbf/iat; required claims | standards conformance, reject malformed/ambiguous claims, clock skew policy | Open |
@@ -28,7 +40,7 @@ The Phase 5 Copilot prompt explicitly instructs implementers not to select an Id
 | IAM-13 | Authorization denial and information disclosure | 401 for unauthenticated; 403/404 policy for authenticated but unauthorized resource | API contract consistency and non-disclosure of resource existence | Open |
 | IAM-14 | Audit attribution | Persist issuer, canonical principal, client, tenant (if applicable), operation and decision reference | accountability, minimization, retention and queryability | Open |
 
-## 3. Proposed security invariants (independent of provider choice)
+## 4. Proposed security invariants (independent of provider choice)
 
 The following are proposed invariants to carry into the accepted IAM specification:
 
@@ -45,7 +57,7 @@ The following are proposed invariants to carry into the accepted IAM specificati
 
 These invariants remain proposals pending review.
 
-## 4. Minimum acceptance criteria for Phase 5
+## 5. Minimum acceptance criteria for Phase 5
 
 Before Phase 5 can be accepted, the approved decisions and specification must support tests for:
 
@@ -61,15 +73,17 @@ Before Phase 5 can be accepted, the approved decisions and specification must su
 
 Test cases must map to requirement IDs and produce retained CI evidence.
 
-## 5. Dependencies and non-decisions
+## 6. Dependencies and non-decisions
 
-- Do not select a concrete IdP, token format, tenant mode, role/scope taxonomy or revocation mechanism solely from this proposal.
+- Do not select a concrete IdP, token format, role/scope taxonomy or revocation mechanism solely from this proposal. The MVP tenancy baseline is recorded separately in accepted ADR-0003.
 - API Contract, Data Model, Security Requirements, Phase 5 implementation prompt, and applicable threat-model entries must be updated consistently after decisions are accepted.
 - Provider-specific code must not begin until the relevant decision(s) are accepted by the maintainer.
 - Phase acceptance remains explicit; this document does not authorize merging PR #8 or any Phase 5 implementation.
 
-## 6. Review record
+## 7. Review record
 
 | Decision | Maintainer outcome | Rationale / ADR link | Date |
 |---|---|---|---|
-| IAM-01 through IAM-14 | Pending | Pending | Pending |
+| IAM-01–05, IAM-08–14 | Pending | Pending | Pending |
+| IAM-06 | Accepted for MVP baseline | ADR-0003; no partner is selected, so this is a logical single-tenant boundary per deployment only | 2026-11-10 |
+| IAM-07 | Deferred for MVP | ADR-0003; reopen before shared tenancy or tenant identity is introduced | 2026-11-10 |

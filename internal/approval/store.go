@@ -10,23 +10,27 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
-	"regexp"
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
 var requestIDPattern = regexp.MustCompile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 func validateRequestID(requestID string) error {
-	if strings.TrimSpace(requestID) == "" { return errors.New("request_id is required") }
-	if !requestIDPattern.MatchString(requestID) { return errors.New("request_id must be a valid UUID") }
+	if strings.TrimSpace(requestID) == "" {
+		return errors.New("request_id is required")
+	}
+	if !requestIDPattern.MatchString(requestID) {
+		return errors.New("request_id must be a valid UUID")
+	}
 	return nil
 }
-
 
 // Store persists approval decisions to PostgreSQL.
 type Store struct {
@@ -61,7 +65,9 @@ func (s *Store) Ping(ctx context.Context) error {
 func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action string) (governance.ApprovalDecision, error) {
 	trimmedMode := strings.TrimSpace(executionMode)
 	trimmedAction := strings.TrimSpace(action)
-	if err := validateRequestID(requestID); err != nil { return governance.ApprovalDecision{}, err }
+	if err := validateRequestID(requestID); err != nil {
+		return governance.ApprovalDecision{}, err
+	}
 	if trimmedAction == "" {
 		return governance.ApprovalDecision{}, errors.New("action is required")
 	}
@@ -85,7 +91,9 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 	`, requestID).Scan(&existing.Action, &existing.ExecutionMode, &existing.Decision,
 		&existing.ApprovedBy, &existing.Reason, &existing.CreatedAt)
 	if err == nil {
-		if existing.Action != trimmedAction || existing.ExecutionMode != trimmedMode { return governance.ApprovalDecision{}, errors.New("request_id is already bound to a different action or execution_mode") }
+		if existing.Action != trimmedAction || existing.ExecutionMode != trimmedMode {
+			return governance.ApprovalDecision{}, errors.New("request_id is already bound to a different action or execution_mode")
+		}
 		existing.RequestID = requestID
 		existing.ApprovalRequired = existing.Decision == "pending"
 		existing.CreatedAt = existing.CreatedAt.UTC()
@@ -127,21 +135,39 @@ func (s *Store) Evaluate(ctx context.Context, requestID, executionMode, action s
 // RecordDecision appends a human or system decision for a request. Existing
 // records are never mutated; the latest row represents the current decision.
 func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approvedBy, reason string, at time.Time) error {
-	if err := validateRequestID(requestID); err != nil { return err }
+	if err := validateRequestID(requestID); err != nil {
+		return err
+	}
 	decision = strings.TrimSpace(decision)
-	if err := validateDecision(decision); err != nil { return err }
+	if err := validateDecision(decision); err != nil {
+		return err
+	}
 	approvedBy = strings.TrimSpace(approvedBy)
-	if approvedBy == "" { return errors.New("approved_by is required") }
-	if len(approvedBy) > 255 { return errors.New("approved_by must be at most 255 characters") }
+	if approvedBy == "" {
+		return errors.New("approved_by is required")
+	}
+	if len(approvedBy) > 255 {
+		return errors.New("approved_by must be at most 255 characters")
+	}
 	reason = strings.TrimSpace(reason)
-	if len(reason) > 4000 { return errors.New("reason must be at most 4000 characters") }
-	if s == nil || s.pool == nil { return errors.New("approval store database pool is nil") }
-	if at.IsZero() { at = time.Now().UTC() }
+	if len(reason) > 4000 {
+		return errors.New("reason must be at most 4000 characters")
+	}
+	if s == nil || s.pool == nil {
+		return errors.New("approval store database pool is nil")
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
 
 	tx, err := s.pool.Begin(ctx)
-	if err != nil { return fmt.Errorf("begin decision transaction: %w", err) }
+	if err != nil {
+		return fmt.Errorf("begin decision transaction: %w", err)
+	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", requestID); err != nil { return fmt.Errorf("lock request decision: %w", err) }
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", requestID); err != nil {
+		return fmt.Errorf("lock request decision: %w", err)
+	}
 
 	action, executionMode := "system", "governed"
 	var existingAction, existingMode, existingDecision string
@@ -151,21 +177,33 @@ func (s *Store) RecordDecision(ctx context.Context, requestID, decision, approve
 	`, requestID).Scan(&existingAction, &existingMode, &existingDecision)
 	if err == nil {
 		action, executionMode = existingAction, existingMode
-		if existingDecision != "pending" { return fmt.Errorf("cannot record decision %q: request is already in terminal state %q", decision, existingDecision) }
-		if decision == "pending" { return errors.New("cannot transition pending decision to pending") }
+		if existingDecision != "pending" {
+			return fmt.Errorf("cannot record decision %q: request is already in terminal state %q", decision, existingDecision)
+		}
+		if decision == "pending" {
+			return errors.New("cannot transition pending decision to pending")
+		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("query existing decision: %w", err)
-	} else if decision != "pending" { return errors.New("initial decision must be pending") }
+	} else if decision != "pending" {
+		return errors.New("initial decision must be pending")
+	}
 
 	id, err := newUUID()
-	if err != nil { return fmt.Errorf("generate decision id: %w", err) }
+	if err != nil {
+		return fmt.Errorf("generate decision id: %w", err)
+	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO approval_decisions
 			(id, request_id, client_id, action, execution_mode, decision, approved_by, reason, created_at)
 		VALUES ($1,$2::uuid,'system',$3,$4,$5,$6,$7,$8)`,
 		id, requestID, action, executionMode, decision, approvedBy, nullIfBlank(reason), at.UTC())
-	if err != nil { return fmt.Errorf("insert decision: %w", err) }
-	if err := tx.Commit(ctx); err != nil { return fmt.Errorf("commit decision: %w", err) }
+	if err != nil {
+		return fmt.Errorf("insert decision: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit decision: %w", err)
+	}
 	return nil
 }
 

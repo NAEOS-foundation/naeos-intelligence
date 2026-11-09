@@ -1,15 +1,18 @@
 # Phase 3 — HTTP API and Request Lifecycle
 
-**Status:** M1 implementation evidence substantially complete; formal contract acceptance pending  
+**Status:** Read-only API scope decision accepted; maintainer approval recorded; M1 verification pending GitHub Actions evidence
 **Phase:** 3  
-**Updated:** 2026-11-05
+**Updated:** 2026-11-10
 
 ## Implemented surface
 
-- `GET /api/v1/health` public health response with no sensitive details.
+- `GET /api/v1/health` and `GET /api/v1/ready` public probes with no sensitive details.
 - `POST /api/v1/intelligence/requests` authenticated submission, strict JSON validation, size bound, 202 response.
 - `GET /api/v1/intelligence/requests/{request_id}` authenticated retrieval with client ownership filtering.
 - `POST /api/v1/intelligence/requests/{request_id}/cancel` authenticated cancellation of requests that have not entered execution.
+- `POST /api/v1/intelligence/requests/{request_id}/analyze` authenticated, read-only analysis returning a deterministic intent, context provenance, proposed plan, runtime gate result, and policy assessment.
+
+The analysis route uses rule-based classifier, context builder, and planner components. Bootstrap configures an empty model-provider registry and empty tool registry, so this path does not invoke a model provider or execute a tool. When PostgreSQL is configured, orchestration evidence events are recorded; these records do not authorize actions.
 
 The HTTP API is implemented in `internal/httpapi`. Bootstrap starts a server with bounded timeouts and SIGINT/SIGTERM graceful shutdown. The default bind address is loopback (`127.0.0.1:8080`); override with `NAEOS_INTELLIGENCE_HTTP_ADDR`.
 
@@ -25,23 +28,22 @@ When all three authentication environment variables are absent, the verifier rem
 - Server-generated request IDs use cryptographic random bytes.
 - `Idempotency-Key` is client-scoped: normalized equivalent payload replay returns the original request; payload mismatch returns 409. Purpose, context source fields and desired output labels are trimmed before digesting.
 - Idempotency retention and request records are in-memory and lost on process restart when the memory adapter is selected. Bootstrap selects PostgreSQL when `DATABASE_URL` is set; production requires `DATABASE_URL` and fails startup without it. PostgreSQL durability/migration/operational readiness must still be validated for the target deployment.
-- Cancellation is supported only while status is `accepted`, `queued`, or `requires_approval`. This prototype has no worker execution, so running cancellation/cooperative propagation is not yet applicable.
+- New MVP submissions use `analysis_only` and start at `accepted`. The current service has no worker that advances them through `queued`, `running`, or `completed`; cancellation of running work and cooperative propagation are therefore not implemented. The persistence adapter retains cancellation handling for `accepted`, `queued`, and `requires_approval` records.
 - Unknown JSON fields, invalid payloads, and trailing JSON values are rejected. Body size is capped at 1 MiB.
 - Errors use a Problem Details-like envelope with request correlation.
 
 ## Deferred
 
-- Lifecycle worker/scheduler, durable state-transition history, and cancellation propagation during running work: later runtime phases.
+- Lifecycle worker/scheduler and cancellation propagation during running work: later runtime phases. PostgreSQL request transition rows are persisted, but a worker-driven lifecycle is not implemented.
 - Identity-provider client registration/secret lifecycle, JWKS rotation operational validation, and production deployment hardening: Identity & Access implementation.
-- Real lifecycle worker/scheduler, transition history, cancellation propagation during running work: subsequent runtime phases.
-- Rate limiting, concurrency/queue controls, readiness probes, and deployment-level auth validation remain outstanding. Structured OpenAPI contract tests were added in PR #34 (YAML parsing, operation/security/response assertions, and local reference resolution); full OpenAPI 3.1 schema validation was added in PR #36 and passed CI run #118.
-- Approval workflow internals remain as non-public prototype scaffolding, but approval HTTP routes are not registered or documented in the MVP API. The MVP does not expose an operational approval workflow, consistent with `docs/vision/PROJECT-SCOPE.md`.
-- No model/tool/policy integration or consequential side-effect execution is introduced through the documented MVP API.
+- A configurable in-process rate limiter and readiness endpoint are implemented. Deployment-level limit sizing, queue/concurrency controls, readiness semantics, and auth validation remain outstanding. Structured OpenAPI contract checks and full OpenAPI 3.1 validation exist; the current local contract edits have not been rerun through those checks.
+- Approval workflow internals remain prototype scaffolding. Approval decisions are not exposed through the MVP HTTP API, consistent with `docs/vision/PROJECT-SCOPE.md`; governed execution and operational approval require separate acceptance.
+- The analyze endpoint evaluates the read-only policy gate, but does not invoke a model, execute tools, or initiate consequential side effects.
 
 ## Acceptance checklist
 
 - [x] Public minimal health handler.
-- [x] HTTP request submission/retrieval/cancellation endpoints.
+- [x] HTTP request submission/retrieval/cancellation/analyze endpoints.
 - [x] Request body schema validation and 1 MiB bound.
 - [x] Client ownership isolation in the store interface and in-memory implementation.
 - [x] Idempotency replay and conflict behavior.
@@ -52,6 +54,6 @@ When all three authentication environment variables are absent, the verifier rem
 - [ ] Deployment-level JWKS trust/rotation validation and end-to-end auth contract coverage.
 - [x] PostgreSQL lifecycle/idempotency integration test execution evidence: CI run #119 configured PostgreSQL 16 with `DATABASE_URL` and `NAEOS_POSTGRES_INTEGRATION=1`; the Go test step passed, including `internal/postgres` (see PR #38 evidence update, still awaiting maintainer acceptance).
 - [x] Concurrent cancellation integration coverage: 12 concurrent cancel calls against the same persisted request assert exactly one `request.cancelled` transition; executed in CI run #119.
-- [x] Full OpenAPI 3.1 schema validation added in PR #36 and passed CI run #118.
+- [x] Full OpenAPI 3.1 schema validation was added in PR #36 and passed CI run #118; current working-tree OpenAPI and route/error contract tests passed in `make test` on 2026-11-10.
 - [ ] Worker-running lifecycle transitions and cancellation propagation remain deferred until the worker/runtime phase; deployment-level IAM/JWKS validation remains pending.
-- [x] `go vet ./...`, `go test ./...`, and `go build ./...` pass in CI run #121 for PR #38 (documentation-only evidence update); PostgreSQL integration suite passed in CI run #119. PR #38 itself remains open pending maintainer contract acceptance and confirmation of any separately configured dependency/security governance gates.
+- [x] Local working-tree checks on 2026-11-10: `make fmt`, `make vet`, `make test`, and `make build` all passed; `govulncheck ./...` reported no vulnerabilities after dependency updates; the repository secret scan passed; and `go mod verify` passed. `NAEOS_POSTGRES_INTEGRATION` was not enabled; opt-in PostgreSQL integration tests were not part of this run. Historical PostgreSQL integration evidence is recorded for CI run #119. Maintainer approval is recorded; GitHub Actions has not run against this change set, so M1 verification remains pending.
