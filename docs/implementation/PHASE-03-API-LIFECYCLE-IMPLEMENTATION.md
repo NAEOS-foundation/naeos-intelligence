@@ -1,6 +1,6 @@
 # Phase 3 — HTTP API and Request Lifecycle
 
-**Status:** Read-only API scope decision accepted; maintainer approval recorded; M1 verification pending GitHub Actions evidence
+**Status:** M1 accepted for the bounded read-only API/lifecycle contract; deployment and runtime acceptance remain separate
 **Phase:** 3  
 **Updated:** 2026-11-10
 
@@ -52,8 +52,8 @@ When all three authentication environment variables are absent, the verifier rem
 - [x] Bounded HTTP server timeouts and graceful shutdown.
 - [x] Concrete JWKS verifier wired by environment configuration; JWT verifier tests cover claim validation.
 - [ ] Deployment-level JWKS trust/rotation validation and end-to-end auth contract coverage.
-- [x] PostgreSQL lifecycle/idempotency integration test execution evidence: CI run #119 configured PostgreSQL 16 with `DATABASE_URL` and `NAEOS_POSTGRES_INTEGRATION=1`; the Go test step passed, including `internal/postgres` (see PR #38 evidence update, still awaiting maintainer acceptance).
+- [x] PostgreSQL lifecycle/idempotency integration test execution evidence: CI run #119 and current CI run #248 configured PostgreSQL 16 with `DATABASE_URL` and `NAEOS_POSTGRES_INTEGRATION=1`; the Go test steps passed, including `internal/postgres`. M1 acceptance was recorded on 2026-11-10.
 - [x] Concurrent cancellation integration coverage: 12 concurrent cancel calls against the same persisted request assert exactly one `request.cancelled` transition; executed in CI run #119.
-- [x] Full OpenAPI 3.1 schema validation was added in PR #36 and passed CI run #118; current working-tree OpenAPI and route/error contract tests passed in `make test` on 2026-11-10.
+- [x] Full OpenAPI 3.1 schema validation was added in PR #36 and passed CI run #118; current OpenAPI and route/error contract tests passed in CI run #248.
 - [ ] Worker-running lifecycle transitions and cancellation propagation remain deferred until the worker/runtime phase; deployment-level IAM/JWKS validation remains pending.
-- [x] Local working-tree checks on 2026-11-10: `make fmt`, `make vet`, `make test`, and `make build` all passed; `govulncheck ./...` reported no vulnerabilities after dependency updates; the repository secret scan passed; and `go mod verify` passed. `NAEOS_POSTGRES_INTEGRATION` was not enabled; opt-in PostgreSQL integration tests were not part of this run. Historical PostgreSQL integration evidence is recorded for CI run #119. Maintainer approval is recorded; GitHub Actions has not run against this change set, so M1 verification remains pending.
+- [x] Local working-tree checks on 2026-11-10: `make fmt`, `make vet`, `make test`, and `make build` all passed; `govulncheck ./...` reported no vulnerabilities; repository secret scan passed; and `go mod verify` passed. Local opt-in PostgreSQL integration was not enabled. GitHub Actions CI run #248 passed with PostgreSQL 16 integration and all configured security/dependency and Go checks. The maintainer accepted M1 for the bounded read-only API/lifecycle contract on 2026-11-10.

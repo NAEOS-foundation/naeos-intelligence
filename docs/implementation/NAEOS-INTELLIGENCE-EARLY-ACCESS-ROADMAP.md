@@ -27,7 +27,7 @@ This snapshot tracks repository work, not milestone acceptance or Early Access a
 | Milestone | Current status | Evidence / remaining gate |
 |---|---|---|
 | M0 — Documentation and Acceptance Alignment | Baseline documentation reconciliation completed; formal spec acceptance remains open | PR #23 aligned target lifecycle with MVP scope, completed normalized error properties/mapping, and clarified JWT/JWKS implementation versus deployment IAM decisions. The specifications remain Draft/Proposed until maintainer acceptance. |
-| M1 — API Contract and Lifecycle Reliability | Read-only API scope decision accepted; maintainer approval recorded; verification pending | Approval operation removal is accepted as a pre-Early-Access MVP scope correction; no partner or in-repository consumer is known, while external inventory is unavailable and must be revisited before onboarding/release if a consumer is identified. Historical PRs #24–#38 provide API and PostgreSQL CI evidence. On 2026-11-10, local format/vet/test/build, `govulncheck`, repository secret scan, and module verification passed; opt-in PostgreSQL integration was not enabled locally. GitHub Actions evidence for this change set remains pending. Deployment-level IAM/JWKS validation remains open; worker-running cancellation behavior is deferred to M3. |
+| M1 — API Contract and Lifecycle Reliability | **Accepted** for bounded read-only API/lifecycle contract | The maintainer approved M1 on 2026-11-10. PR #67 commit `7348307` passed CI run #248, including PostgreSQL 16 integration, dependency/security scans, vet, tests, and build. No partner or in-repository consumer is known; external inventory is unavailable and compatibility must be revisited before onboarding/release if a consumer is identified. Deployment-level IAM/JWKS validation remains open; worker-running cancellation behavior is deferred to M3. |
 | M2 — IAM Decision and Security Hardening | Partially unblocked for provider-neutral planning; provider-specific work not started | ADR-0003 accepts a single logical tenant per deployment for MVP and defers IAM-07. IAM-01–05 and IAM-08–14 remain owner/security decisions; no production IAM acceptance is inferred. |
 | M3 — Runtime and Worker Foundation | Not started | Requires accepted lifecycle/API contracts and approved scope. |
 | M4 — Policy and Governance Enforcement | Not started | Requires accepted policy/IAM decisions; no side-effect execution enabled. |
@@ -35,10 +35,10 @@ This snapshot tracks repository work, not milestone acceptance or Early Access a
 
 ### Immediate next work
 
-1. Run required GitHub Actions checks on the reviewed change set and record maintainer M1 acceptance only after all mandatory results are green; revisit external consumer compatibility if a consumer is identified before onboarding or release.
+1. Continue M2 IAM decisions; revisit external consumer compatibility if a consumer is identified before onboarding or release.
 2. Keep deployment-level IAM/JWKS validation and IAM-01–05 / IAM-08–14 owner/security decisions as explicit M2 blockers. Reopen IAM-06/07 only if shared tenancy becomes a requirement.
 3. Defer worker-running lifecycle/cancellation propagation tests until M3; do not treat current accepted/cancelled PostgreSQL integration coverage as worker-runtime evidence.
-4. Refresh this snapshot after PR #38 and subsequent reviewed changes merge; do not claim milestone acceptance from CI success alone.
+4. Refresh this snapshot after PR #67 and subsequent reviewed changes merge; do not infer Early Access approval from M1 acceptance.
 
 ## Milestones
 
@@ -145,8 +145,8 @@ Milestones may overlap only where their inputs are accepted and no dependency or
 
 ## Immediate execution queue
 
-1. Record M0/M1 specification and contract acceptance decisions from designated maintainers; keep Draft/Proposed status until accepted.
-2. Confirm M1 consumer compatibility and all required governance gates; PR #38 documents the current CI evidence but remains pending review.
+1. Keep Draft/Proposed status on specifications until their designated maintainers accept them; M1 bounded API/lifecycle acceptance is recorded in the checklist.
+2. Continue IAM/deployment decisions in M2; revisit M1 consumer compatibility if an external consumer is identified before onboarding or release.
 3. Close IAM worksheet blockers before enabling stronger deployment claims or extending access.
 4. Proceed milestone-by-milestone; re-assess scope and readiness after each exit review.
 
