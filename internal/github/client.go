@@ -159,15 +159,17 @@ func (c *Client) get(ctx context.Context, path string, dst any) error {
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized, http.StatusForbidden:
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%w (status=%d body=%s)", errUnauthorized, resp.StatusCode, strings.TrimSpace(string(body)))
+		// Do not consume or expose provider error bodies: they may be large or
+		// contain sensitive details. The deferred close releases the response.
+		return fmt.Errorf("%w (status=%d)", errUnauthorized, resp.StatusCode)
 	case http.StatusNotFound:
 		return errors.New("github: resource not found")
 	case http.StatusTooManyRequests:
 		return errors.New("github: rate limit exceeded")
 	default:
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("github request %s failed: status=%d body=%s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		// Error bodies are intentionally not read; keep memory use bounded and
+		// avoid leaking upstream response content into application errors.
+		return fmt.Errorf("github request %s failed: status=%d", path, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
