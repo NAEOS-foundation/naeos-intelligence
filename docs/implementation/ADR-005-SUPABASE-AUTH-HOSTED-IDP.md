@@ -1,6 +1,6 @@
 # ADR-005: Supabase Auth as the hosted NAEOS Identity Provider
 
-**Status:** Accepted for IAM-01 and IAM-02; deployment project and remaining IAM decisions are open  
+**Status:** Accepted for IAM-01 and IAM-02; `naeos-crm-production` selected as IdP; remaining IAM decisions are open  
 **Date:** 2026-11-11  
 **Decision owner:** NAEOS maintainer  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `PHASE-05-IAM-MVP-DECISION-BRIEF.md`
@@ -23,7 +23,7 @@ This decision does not authorize using Supabase API keys as user access tokens. 
 
 Accepted: use hosted Supabase Auth. Do not build a custom NAEOS token issuer or manage a NAEOS-owned private signing key for this integration.
 
-The exact Supabase project and issuer URL are intentionally not selected by this ADR. Project selection must account for CRM's native Auth/Data API trust boundary and the separate `naeos.db` Intelligence database. Do not configure production issuer/JWKS environment variables until the project decision is recorded.
+Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore). The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database and is not the token issuer. This selection keeps CRM's native Auth/Data API trust boundary within one Supabase project while allowing NAEOS Intelligence to verify CRM-issued tokens through the issuer's public JWKS. The exact issuer/audience contract still requires real-token verification under IAM-03. Do not configure production issuer/JWKS environment variables until the signing key, JWKS, token claims, and remaining IAM gates are verified.
 
 ## Current implementation evidence
 
@@ -57,9 +57,9 @@ The exact Supabase project and issuer URL are intentionally not selected by this
 7. Require CI evidence for invalid signature, unsupported algorithm, unknown key, wrong issuer/audience, expiry, future not-before, missing identity, insufficient scope, JWKS outage, key rotation, and resource ownership.
 8. No production database schema changes are authorized by this ADR.
 
-## Deployment contract (after project selection)
+## Deployment contract (selected project; activation still gated)
 
-For the selected project:
+For `naeos-crm-production` (`oruykkehukoiipldzcvc`), the candidate values are:
 
 ```env
 NAEOS_AUTH_ISSUER=https://<PROJECT_REF>.supabase.co/auth/v1
@@ -67,7 +67,15 @@ NAEOS_AUTH_AUDIENCE=authenticated
 NAEOS_AUTH_JWKS_URL=https://<PROJECT_REF>.supabase.co/auth/v1/.well-known/jwks.json
 ```
 
-These values are a proposed mapping only. Confirm `iss` and `aud` from an actual access token before enabling the configuration. Keep all three unset in production until the project and claims mapping pass the gates above.
+Candidate values (not yet approved for deployment):
+
+```env
+NAEOS_AUTH_ISSUER=https://oruykkehukoiipldzcvc.supabase.co/auth/v1
+NAEOS_AUTH_AUDIENCE=authenticated
+NAEOS_AUTH_JWKS_URL=https://oruykkehukoiipldzcvc.supabase.co/auth/v1/.well-known/jwks.json
+```
+
+Confirm the actual `iss` and `aud` from a real access token and confirm the live JWKS contains the active RS256 public key before enabling any value. Keep all three unset in production until the signing-key, claim-mapping, and remaining IAM gates pass. The CRM project's own Data API authorization and cross-project Intelligence access are separate trust boundaries.
 
 ## Consequences
 
