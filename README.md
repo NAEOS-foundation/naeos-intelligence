@@ -176,6 +176,14 @@ NAEOS Intelligence follows these foundational rules:
 
 The initial MVP will not permit autonomous production deployment or unrestricted production data modification.
 
+## NAEOS service connections
+
+The API enriches explicitly supplied engineering context from NAEOS Core and GitHub. These connectors are read-only and run only for matching source types (`naeos-core` and `repository`); other source types do not trigger outbound requests. CRM records and personal data are not connector inputs. The Core connector calls `GET /api/v1/repositories/{owner}/{name}` on the standalone Core API; Core limits requests to `NAEOS_GITHUB_ALLOWED_REPOSITORIES` and requires the `naeos:repository:read` service scope. For a local host setup, Core can listen on `8081` while Intelligence listens on `8080`; set the Core base URL to `http://127.0.0.1:8081/api`.
+
+Configure Core with `NAEOS_INTELLIGENCE_CORE_API_BASE_URL` (default: `https://api.naeos.dev/api`) and provide a pre-issued RS256 service JWT in `NAEOS_CORE_SERVICE_TOKEN`. The JWT must be trusted by Core's configured JWKS verifier and include only `naeos:repository:read`. GitHub authentication is optional and can be supplied with `GITHUB_TOKEN` to raise the unauthenticated API rate limit. Keep credentials in a secrets manager or local environment, never in repository files. The Compose stack forwards these variables to the Intelligence container.
+
+Core and GitHub lookup failures stop context building. Retrieved context is still untrusted input and does not grant permission to execute actions; Intelligence outputs remain proposals under the existing policy and runtime boundaries.
+
 ## Development Roadmap
 
 ### Phase 0 — Documentation and Architecture
