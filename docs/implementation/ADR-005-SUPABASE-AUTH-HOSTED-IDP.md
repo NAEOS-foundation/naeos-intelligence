@@ -59,15 +59,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 
 ## Deployment contract (selected project; activation still gated)
 
-For `naeos-crm-production` (`oruykkehukoiipldzcvc`), the candidate values are:
-
-```env
-NAEOS_AUTH_ISSUER=https://<PROJECT_REF>.supabase.co/auth/v1
-NAEOS_AUTH_AUDIENCE=authenticated
-NAEOS_AUTH_JWKS_URL=https://<PROJECT_REF>.supabase.co/auth/v1/.well-known/jwks.json
-```
-
-Candidate values (not yet approved for deployment):
+Candidate values for `naeos-crm-production` (`oruykkehukoiipldzcvc`; not yet approved for deployment):
 
 ```env
 NAEOS_AUTH_ISSUER=https://oruykkehukoiipldzcvc.supabase.co/auth/v1
