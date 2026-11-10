@@ -67,8 +67,21 @@ func (r *CoreSourceResolver) Resolve(ctx context.Context, input intctx.SourceInp
 
 func parseCoreRef(ref string) (string, string, error) {
 	parts := strings.SplitN(strings.TrimSpace(ref), "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) != 2 || !validCoreSegment(parts[0]) || !validCoreSegment(parts[1]) {
 		return "", "", fmt.Errorf("invalid naeos-core reference %q, want owner/name", ref)
 	}
 	return parts[0], parts[1], nil
+}
+
+func validCoreSegment(value string) bool {
+	if value == "" || value == "." || value == ".." {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }

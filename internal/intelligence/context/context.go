@@ -63,6 +63,19 @@ type SourceResolver interface {
 	Resolve(ctx context.Context, input SourceInput) (ResolvedSource, error)
 }
 
+// SourceResolverSet routes each source type to its explicitly registered
+// provider. Unregistered source types remain metadata-only and cause no
+// outbound request.
+type SourceResolverSet map[string]SourceResolver
+
+// Resolve dispatches a source only to the provider registered for its type.
+func (s SourceResolverSet) Resolve(ctx context.Context, input SourceInput) (ResolvedSource, error) {
+	if resolver, ok := s[strings.TrimSpace(input.Type)]; ok && resolver != nil {
+		return resolver.Resolve(ctx, input)
+	}
+	return ResolvedSource{Type: input.Type, Reference: input.Reference, Metadata: map[string]any{}}, nil
+}
+
 // ResolverOption configures a RuleBuilder.
 type ResolverOption func(*RuleBuilder)
 

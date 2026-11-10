@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -25,7 +26,7 @@ type Client struct {
 func NewClient(token, user string) *Client {
 	return &Client{
 		http:  &http.Client{Timeout: 30 * time.Second},
-		base:  "https://api.naeos.dev",
+		base:  "https://api.naeos.dev/api",
 		token: strings.TrimSpace(token),
 		user:  strings.TrimSpace(user),
 	}
@@ -33,7 +34,7 @@ func NewClient(token, user string) *Client {
 
 // SetBaseURL overrides the NAEOS Core API base URL (used for testing).
 func (c *Client) SetBaseURL(url string) {
-	c.base = url
+	c.base = strings.TrimRight(strings.TrimSpace(url), "/")
 }
 
 // Repository is engineering context retrieved from NAEOS Core.
@@ -73,7 +74,7 @@ type Issue struct {
 
 // GetRepository fetches repository context from NAEOS Core.
 func (c *Client) GetRepository(ctx context.Context, owner, name string) (*Repository, error) {
-	path := fmt.Sprintf("/v1/repositories/%s/%s", owner, name)
+	path := fmt.Sprintf("/v1/repositories/%s/%s", url.PathEscape(owner), url.PathEscape(name))
 	var repo Repository
 	if err := c.get(ctx, path, &repo); err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func (c *Client) ListIssues(ctx context.Context, owner, name string, maxResults 
 	if maxResults <= 0 || maxResults > 100 {
 		maxResults = 30
 	}
-	path := fmt.Sprintf("/v1/repositories/%s/%s/issues?state=open&limit=%d", owner, name, maxResults)
+	path := fmt.Sprintf("/v1/repositories/%s/%s/issues?state=open&limit=%d", url.PathEscape(owner), url.PathEscape(name), maxResults)
 	var issues []Issue
 	if err := c.get(ctx, path, &issues); err != nil {
 		return nil, err
@@ -123,20 +124,28 @@ func (c *Client) get(ctx context.Context, path string, dst any) error {
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusUnauthorized, http.StatusForbidden:
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("%w (status=%d body=%s)", errUnauthorized, resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%w (status=%d)", errUnauthorized, resp.StatusCode)
 	case http.StatusNotFound:
 		return errors.New("naeoscore: resource not found")
 	case http.StatusTooManyRequests:
 		return errors.New("naeoscore: rate limit exceeded")
 	default:
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("naeoscore request %s failed: status=%d body=%s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("naeoscore request %s failed: status=%d", path, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
 	if err != nil {
 		return fmt.Errorf("read naeoscore response %s: %w", path, err)
+	}
+	var envelope struct {
+		Success *bool           `json:"success"`
+		Data    json.RawMessage `json:"data"`
+	}
+	if json.Unmarshal(body, &envelope) == nil && envelope.Success != nil {
+		if !*envelope.Success || len(envelope.Data) == 0 {
+			return errors.New("naeoscore: unsuccessful API response")
+		}
+		body = envelope.Data
 	}
 	if err := json.Unmarshal(body, dst); err != nil {
 		return fmt.Errorf("decode naeoscore response %s: %w", path, err)
