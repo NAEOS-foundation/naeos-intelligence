@@ -2,10 +2,10 @@
 
 **Document ID:** NAEOS-INT-IAM-BRIEF-001  
 **Version:** 0.1.0  
-**Status:** Partially accepted — IAM-01 and IAM-02 accepted; IAM-03 through IAM-14 remain open  
+**Status:** Partially accepted — IAM-01 and IAM-02 accepted; `naeos-crm-production` selected as IdP; IAM-03 through IAM-14 remain open  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
 
-> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and hosted Supabase Auth for IAM-02; the exact Supabase project and IAM-03 through IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
+> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. IAM-03 through IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
 
 ## 1. Decision objective
 
@@ -44,7 +44,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Use an established hosted/organization IdP for early access; do not build a custom IdP. Select the exact issuer only after partner and deployment requirements are known.
 
-**Maintainer decision:** Accepted — hosted Supabase Auth; exact project/issuer selection remains open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
+**Maintainer decision:** Accepted — hosted Supabase Auth in `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore). `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database. The exact issuer/audience policy is still subject to IAM-03 and real-token verification. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
 
 ### IAM-03 — Issuer and audience policy
 
@@ -138,7 +138,8 @@ Maintainer input is required for these questions; this document intentionally do
 
 | Decision group | Maintainer outcome | Rationale / ADR | Date |
 |---|---|---|---|
-| IAM-01–03 | Pending | Pending | Pending |
+| IAM-01–02 | Accepted — Supabase Auth RS256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-11 |
+| IAM-03 | Pending — pin issuer/audience per environment after real-token verification | Pending | Pending |
 | IAM-04–05 | Pending | Pending | Pending |
 | IAM-06–07 | Pending | Pending | Pending |
 | IAM-08–09 | Pending | Pending | Pending |
