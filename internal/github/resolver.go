@@ -67,7 +67,12 @@ func (r *GitHubSourceResolver) Resolve(ctx context.Context, input intctx.SourceI
 }
 
 func parseRepositoryRef(ref string) (string, string, error) {
-	parts := strings.SplitN(strings.TrimSpace(ref), "/", 2)
+	// Reject surrounding whitespace rather than silently normalizing malformed
+	// references (including trailing newline/control characters).
+	if ref != strings.TrimSpace(ref) {
+		return "", "", fmt.Errorf("invalid repository reference %q, want owner/name", ref)
+	}
+	parts := strings.SplitN(ref, "/", 2)
 	if len(parts) != 2 || !validRepositorySegment(parts[0]) || !validRepositorySegment(parts[1]) {
 		return "", "", fmt.Errorf("invalid repository reference %q, want owner/name", ref)
 	}
