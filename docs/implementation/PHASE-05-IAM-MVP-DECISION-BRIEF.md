@@ -2,10 +2,10 @@
 
 **Document ID:** NAEOS-INT-IAM-BRIEF-001  
 **Version:** 0.1.0  
-**Status:** Draft for maintainer decision — not an accepted ADR  
+**Status:** Partially accepted — IAM-01 and IAM-02 accepted; IAM-03 through IAM-14 remain open  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
 
-> This brief provides options and provisional recommendations for discussion. It does not close IAM decision items, authorize provider-specific implementation, or replace an accepted ADR. A maintainer must explicitly accept or amend the decisions and record rationale.
+> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and hosted Supabase Auth for IAM-02; the exact Supabase project and IAM-03 through IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
 
 ## 1. Decision objective
 
@@ -32,7 +32,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Prefer standard OIDC/OAuth 2.0 JWT access tokens for a partner-facing pilot only if the issuer supports required validation and lifecycle controls. Evaluate opaque introspection if prompt revocation is a requirement. Avoid bespoke credentials absent a compelling constraint.
 
-**Maintainer decision:** Open.
+**Maintainer decision:** Accepted — Supabase Auth session access JWT; RS256 allowlist. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
 
 ### IAM-02 — Identity provider / issuer authority
 
@@ -44,7 +44,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Use an established hosted/organization IdP for early access; do not build a custom IdP. Select the exact issuer only after partner and deployment requirements are known.
 
-**Maintainer decision:** Open.
+**Maintainer decision:** Accepted — hosted Supabase Auth; exact project/issuer selection remains open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
 
 ### IAM-03 — Issuer and audience policy
 
