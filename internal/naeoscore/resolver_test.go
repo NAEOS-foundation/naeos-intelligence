@@ -3,6 +3,7 @@ package naeoscore
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,6 +47,38 @@ func TestClient_GetRepository(t *testing.T) {
 	if repo.CreatedAt.IsZero() {
 		t.Error("created_at must not be zero")
 	}
+}
+
+func TestClient_GetRepository_APIResponseEnvelope(t *testing.T) {
+	repoJSON := `{"success":true,"data":{"id":"repo-123","name":"demo","full_name":"owner/demo","description":"A demo repository","private":false,"archived":false,"default_branch":"main","open_issues":5,"stars":42,"forks":7,"size_kb":1024,"created_at":"2024-01-01T00:00:00Z","updated_at":"2024-02-01T00:00:00Z","url":"https://github.com/owner/demo"}}`
+
+	c := NewClient("test-token", "naeos-intelligence")
+	c.SetBaseURL("https://core.example/api")
+	c.http = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://core.example/api/v1/repositories/owner/demo" {
+			t.Errorf("unexpected URL: %s", req.URL)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(repoJSON)),
+			Request:    req,
+		}, nil
+	})}
+
+	repo, err := c.GetRepository(context.Background(), "owner", "demo")
+	if err != nil {
+		t.Fatalf("GetRepository: %v", err)
+	}
+	if repo.FullName != "owner/demo" || repo.Stars != 42 {
+		t.Errorf("unexpected repository metadata: %+v", repo)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestClient_GetRepository_Unauthorized(t *testing.T) {
