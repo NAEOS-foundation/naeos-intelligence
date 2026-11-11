@@ -67,9 +67,30 @@ func (r *GitHubSourceResolver) Resolve(ctx context.Context, input intctx.SourceI
 }
 
 func parseRepositoryRef(ref string) (string, string, error) {
-	parts := strings.SplitN(strings.TrimSpace(ref), "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	// Reject surrounding whitespace rather than silently normalizing malformed
+	// references (including trailing newline/control characters).
+	if ref != strings.TrimSpace(ref) {
+		return "", "", fmt.Errorf("invalid repository reference %q, want owner/name", ref)
+	}
+	parts := strings.SplitN(ref, "/", 2)
+	if len(parts) != 2 || !validRepositorySegment(parts[0]) || !validRepositorySegment(parts[1]) {
 		return "", "", fmt.Errorf("invalid repository reference %q, want owner/name", ref)
 	}
 	return parts[0], parts[1], nil
+}
+
+
+// validRepositorySegment accepts only a conservative repository path segment.
+// This prevents traversal, control characters, and URL/path delimiter injection.
+func validRepositorySegment(value string) bool {
+	if value == "" || value == "." || value == ".." {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
