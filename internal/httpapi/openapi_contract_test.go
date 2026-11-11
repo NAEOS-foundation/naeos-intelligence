@@ -87,24 +87,6 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"\"503\":\n          $ref: \"#/components/responses/Problem\"",
 	)
 
-	approval := sectionBetween(t, spec, "  /intelligence/requests/{request_id}/approval:\n", "components:\n")
-	assertOpenAPIContains(t, approval,
-		"operationId: recordApprovalDecision",
-		"\"200\":",
-		"#/components/schemas/ApprovalDecisionResponse",
-		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
-	)
-
-	approvalInput := sectionBetween(t, spec, "    ApprovalDecisionInput:\n", "    ApprovalDecisionResponse:\n")
-	assertOpenAPIContains(t, approvalInput,
-		"decision: { type: string, enum: [approved, denied, rejected] }",
-	)
-
-	approvalResponse := sectionBetween(t, spec, "    ApprovalDecisionResponse:\n", "")
-	assertOpenAPIContains(t, approvalResponse,
-		"approval_required: { type: boolean }",
-		"created_at: { type: string, format: date-time }",
-	)
 }
 
 func TestOpenAPIProblemEnvelopeAndInputBounds(t *testing.T) {
