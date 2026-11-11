@@ -92,6 +92,9 @@ paths:
         "429":
           $ref: "#/components/responses/Problem"
           description: RATE_LIMITED — too many requests; please slow down
+        "500":
+          $ref: "#/components/responses/Problem"
+          description: INTERNAL_ERROR — request could not be accepted
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
@@ -121,6 +124,9 @@ paths:
         "429":
           $ref: "#/components/responses/Problem"
           description: RATE_LIMITED — too many requests; please slow down
+        "500":
+          $ref: "#/components/responses/Problem"
+          description: INTERNAL_ERROR — request could not be retrieved
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
@@ -155,41 +161,9 @@ paths:
         "429":
           $ref: "#/components/responses/Problem"
           description: RATE_LIMITED — too many requests; please slow down
-        "503":
+        "500":
           $ref: "#/components/responses/Problem"
-          description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
-  /intelligence/requests/{request_id}/approval:
-    parameters:
-      - $ref: "#/components/parameters/RequestIDPath"
-    post:
-      operationId: recordApprovalDecision
-      summary: Record an approval decision for a request
-      security:
-        - bearerAuth: [intelligence:write]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ApprovalDecisionInput"
-      responses:
-        "200":
-          description: Approval decision recorded
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ApprovalDecisionResponse" }
-        "401":
-          $ref: "#/components/responses/Problem"
-          description: UNAUTHENTICATED — missing or invalid credentials
-        "403":
-          $ref: "#/components/responses/Problem"
-          description: FORBIDDEN — authenticated client lacks the required scope
-        "404":
-          $ref: "#/components/responses/Problem"
-          description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
-        "429":
-          $ref: "#/components/responses/Problem"
-          description: RATE_LIMITED — too many requests; please slow down
+          description: INTERNAL_ERROR — cancellation could not be processed
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — authentication verifier is not configured; protected requests fail closed
@@ -213,6 +187,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AnalyzeResponse" }
+        "400":
+          $ref: "#/components/responses/Problem"
+          description: INVALID_REQUEST — malformed JSON or multiple JSON values
         "401":
           $ref: "#/components/responses/Problem"
           description: UNAUTHENTICATED — missing or invalid credentials
@@ -222,9 +199,18 @@ paths:
         "404":
           $ref: "#/components/responses/Problem"
           description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "413":
+          $ref: "#/components/responses/Problem"
+          description: PAYLOAD_TOO_LARGE — request body exceeds the configured limit
+        "422":
+          $ref: "#/components/responses/Problem"
+          description: UNPROCESSABLE_REQUEST — request violates the analysis input schema
         "429":
           $ref: "#/components/responses/Problem"
           description: RATE_LIMITED — too many requests; please slow down
+        "500":
+          $ref: "#/components/responses/Problem"
+          description: INTERNAL_ERROR — analysis could not be completed or request could not be retrieved
         "503":
           $ref: "#/components/responses/Problem"
           description: SERVICE_UNAVAILABLE — intelligence pipeline is not configured or store is unreachable
@@ -319,27 +305,6 @@ components:
         request_id: { type: string }
         status: { $ref: "#/components/schemas/Status" }
         message: { type: string, maxLength: 1000 }
-    ApprovalDecisionInput:
-      type: object
-      additionalProperties: false
-      required: [decision]
-      properties:
-        decision: { type: string, enum: [approved, denied, rejected] }
-        approved_by: { type: string, maxLength: 256 }
-        reason: { type: string, maxLength: 1000 }
-    ApprovalDecisionResponse:
-      type: object
-      additionalProperties: false
-      required: [request_id, action, execution_mode, decision, approval_required, created_at]
-      properties:
-        request_id: { type: string }
-        action: { type: string }
-        execution_mode: { type: string }
-        decision: { type: string }
-        approved_by: { type: string, maxLength: 256 }
-        reason: { type: string, maxLength: 1000 }
-        approval_required: { type: boolean }
-        created_at: { type: string, format: date-time }
     AnalyzeInput:
       type: object
       additionalProperties: false

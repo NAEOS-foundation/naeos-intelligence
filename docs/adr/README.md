@@ -4,6 +4,14 @@ This directory contains Architecture Decision Records (ADRs) for NAEOS Intellige
 
 ADRs record architectural decisions and their rationale. An ADR MUST remain consistent with higher-level requirements unless an explicit amendment is approved.
 
+## Accepted decisions
+
+| ADR | Decision |
+|---|---|
+| [ADR-0002](20261106-intelligence-pipeline.md) | Read-only deterministic intelligence pipeline |
+| [ADR-0003](20261110-single-tenant-mvp-baseline.md) | Single logical tenant per MVP deployment; no shared tenancy or IdP selection |
+| [ADR-0004](20261110-read-only-api-authorization-baseline.md) | Scope plus owner checks for read-only API; provider and actor mapping remain open |
+
 ## ADR naming convention
 
 `YYYYMMDD-title.md`

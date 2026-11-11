@@ -36,7 +36,6 @@ func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter, val
 	h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))
 	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}", auth.Middleware("intelligence:read", http.HandlerFunc(h.get)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
-	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:write", http.HandlerFunc(h.approve)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/analyze", auth.Middleware("intelligence:read", http.HandlerFunc(h.analyze)))
 
 	var wrapped http.Handler = h.mux
@@ -157,48 +156,6 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, CancellationAccepted{RequestID: req.RequestID, Status: req.Status, Message: "Cancellation was accepted or request is already cancelled"})
 }
 
-func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
-	p, ok := principalFrom(r.Context())
-	if !ok {
-		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
-		return
-	}
-	var input ApprovalDecisionInput
-	if err := decodeBody(w, r, &input); err != nil {
-		status := http.StatusBadRequest
-		code := "INVALID_REQUEST"
-		if errors.Is(err, errPayloadTooLarge) {
-			status = http.StatusRequestEntityTooLarge
-			code = "PAYLOAD_TOO_LARGE"
-		}
-		writeProblem(w, r, status, code, err.Error())
-		return
-	}
-	if err := validateApprovalDecision(input); err != nil {
-		writeProblem(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_REQUEST", err.Error())
-		return
-	}
-	decision, err := h.store.RecordApprovalDecision(r.Context(), p.ClientID, r.PathValue("request_id"), input.Decision, input.ApprovedBy, input.Reason)
-	if errors.Is(err, ErrNotFound) {
-		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
-		return
-	}
-	if err != nil {
-		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Approval decision could not be recorded")
-		return
-	}
-	writeJSON(w, http.StatusOK, ApprovalDecisionResponse{
-		RequestID:        decision.RequestID,
-		Action:           decision.Action,
-		ExecutionMode:    decision.ExecutionMode,
-		Decision:         decision.Decision,
-		ApprovedBy:       decision.ApprovedBy,
-		Reason:           decision.Reason,
-		ApprovalRequired: decision.ApprovalRequired,
-		CreatedAt:        decision.CreatedAt,
-	})
-}
-
 func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
 	p, ok := principalFrom(r.Context())
 	if !ok {
@@ -270,18 +227,6 @@ type AnalyzeResponse struct {
 	PolicyDecision policy.Decision `json:"policy_decision"`
 	Provenance     string          `json:"provenance"`
 	CreatedAt      time.Time       `json:"created_at"`
-}
-
-func validateApprovalDecision(in ApprovalDecisionInput) error {
-	if strings.TrimSpace(in.Decision) == "" {
-		return errors.New("decision is required")
-	}
-	switch strings.ToLower(strings.TrimSpace(in.Decision)) {
-	case "approved", "denied", "rejected":
-	default:
-		return errors.New("decision must be one of: approved, denied, rejected")
-	}
-	return nil
 }
 
 func validateInput(in RequestInput) error {

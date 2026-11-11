@@ -198,7 +198,7 @@ func TestRecordDecisionValidationFailsBeforeDatabase(t *testing.T) {
 	ctx := context.Background()
 	cases := []struct {
 		name, approver, reason string
-		want string
+		want                   string
 	}{
 		{"approver too long", strings.Repeat("a", 256), "reason", "approved_by must be at most 255 characters"},
 		{"reason too long", "reviewer", strings.Repeat("r", 4001), "reason must be at most 4000 characters"},

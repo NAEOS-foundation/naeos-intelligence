@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -15,6 +16,7 @@ type Config struct {
 	HTTP      HTTPConfig
 	RateLimit RateLimitConfig
 	OpenAPI   OpenAPIConfig
+	Core      CoreConfig
 }
 
 // AppConfig contains the minimal approved application settings.
@@ -39,6 +41,12 @@ type OpenAPIConfig struct {
 	SpecPath string
 }
 
+// CoreConfig contains non-sensitive NAEOS Core connection settings.
+// Credentials are read separately by the application bootstrap.
+type CoreConfig struct {
+	BaseURL string
+}
+
 const (
 	envPrefix          = "NAEOS_INTELLIGENCE_"
 	environmentKey     = envPrefix + "APP_ENVIRONMENT"
@@ -47,12 +55,14 @@ const (
 	rateLimitRateKey   = envPrefix + "RATE_LIMIT_RATE"
 	rateLimitBurstKey  = envPrefix + "RATE_LIMIT_BURST"
 	openAPISpecPathKey = envPrefix + "OPENAPI_SPEC_PATH"
+	coreBaseURLKey     = envPrefix + "CORE_API_BASE_URL"
 	defaultEnv         = "development"
 	defaultLogLevel    = "info"
 	defaultHTTPAddr    = "127.0.0.1:8080"
 	defaultRateLimit   = 10.0
 	defaultRateBurst   = 20
 	defaultSpecPath    = "api/openapi.yaml"
+	defaultCoreBaseURL = "https://api.naeos.dev/api"
 )
 
 // Load reads the supplied process environment and returns a validated snapshot.
@@ -74,6 +84,7 @@ func Load(environ []string) (Config, error) {
 		rateLimitRateKey:   {},
 		rateLimitBurstKey:  {},
 		openAPISpecPathKey: {},
+		coreBaseURLKey:     {},
 	}
 	for key := range values {
 		if strings.HasPrefix(key, envPrefix) {
@@ -98,6 +109,7 @@ func Load(environ []string) (Config, error) {
 		OpenAPI: OpenAPIConfig{
 			SpecPath: defaultSpecPath,
 		},
+		Core: CoreConfig{BaseURL: defaultCoreBaseURL},
 	}
 	if value, ok := values[environmentKey]; ok {
 		cfg.App.Environment = strings.TrimSpace(value)
@@ -120,6 +132,9 @@ func Load(environ []string) (Config, error) {
 	}
 	if value, ok := values[openAPISpecPathKey]; ok {
 		cfg.OpenAPI.SpecPath = strings.TrimSpace(value)
+	}
+	if value, ok := values[coreBaseURLKey]; ok {
+		cfg.Core.BaseURL = strings.TrimSpace(value)
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -156,6 +171,14 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.OpenAPI.SpecPath) == "" {
 		return fmt.Errorf("configuration %s: must not be empty", openAPISpecPathKey)
+	}
+
+	if strings.TrimSpace(c.Core.BaseURL) != "" {
+		coreURL, err := url.Parse(c.Core.BaseURL)
+		if err != nil || coreURL.Host == "" || coreURL.User != nil || coreURL.RawQuery != "" || coreURL.Fragment != "" ||
+			(coreURL.Scheme != "https" && !(coreURL.Scheme == "http" && (coreURL.Hostname() == "localhost" || coreURL.Hostname() == "127.0.0.1" || (c.App.Environment == "development" && coreURL.Hostname() == "host.docker.internal")))) {
+			return fmt.Errorf("configuration %s: must be an https URL (http is allowed only for localhost)", coreBaseURLKey)
+		}
 	}
 
 	return nil

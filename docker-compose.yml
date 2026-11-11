@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16
@@ -9,7 +7,7 @@ services:
       POSTGRES_PASSWORD: naeos
       POSTGRES_DB: naeos_intelligence_dev
     ports:
-      - "5432:5432"
+      - "${INTELLIGENCE_POSTGRES_PORT:-5433}:5432"
     volumes:
       - naeos-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -33,7 +31,15 @@ services:
       NAEOS_INTELLIGENCE_APP_LOG_LEVEL: debug
       NAEOS_INTELLIGENCE_RATE_LIMIT_RATE: 10
       NAEOS_INTELLIGENCE_RATE_LIMIT_BURST: 20
-      NAEOS_OPENAPI_SPEC_PATH: /app/api/openapi.yaml
+      NAEOS_INTELLIGENCE_OPENAPI_SPEC_PATH: /app/api/openapi.yaml
+      NAEOS_INTELLIGENCE_CORE_API_BASE_URL: ${NAEOS_INTELLIGENCE_DOCKER_CORE_API_BASE_URL:-http://host.docker.internal:8081/api}
+      NAEOS_AUTH_ISSUER: ${NAEOS_AUTH_ISSUER:-}
+      NAEOS_AUTH_AUDIENCE: ${NAEOS_AUTH_AUDIENCE:-}
+      NAEOS_AUTH_JWKS_URL: ${NAEOS_AUTH_JWKS_URL:-}
+      NAEOS_CORE_SERVICE_TOKEN: ${NAEOS_CORE_SERVICE_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     volumes:

@@ -32,6 +32,7 @@ func TestOpenAPIErrorResponsesDeclareEndpointCodes(t *testing.T) {
 				"400": "INVALID_REQUEST", "401": "UNAUTHENTICATED",
 				"403": "FORBIDDEN", "409": "CONFLICT",
 				"413": "PAYLOAD_TOO_LARGE", "422": "UNPROCESSABLE_REQUEST",
+				"429": "RATE_LIMITED", "500": "INTERNAL_ERROR",
 				"503": "SERVICE_UNAVAILABLE",
 			},
 		},
@@ -39,7 +40,9 @@ func TestOpenAPIErrorResponsesDeclareEndpointCodes(t *testing.T) {
 			"/intelligence/requests/{request_id}", "get", "getIntelligenceRequest",
 			map[string]string{
 				"401": "UNAUTHENTICATED", "403": "FORBIDDEN",
-				"404": "RESOURCE_NOT_FOUND", "503": "SERVICE_UNAVAILABLE",
+				"404": "RESOURCE_NOT_FOUND", "429": "RATE_LIMITED",
+				"500": "INTERNAL_ERROR",
+				"503": "SERVICE_UNAVAILABLE",
 			},
 		},
 		{
@@ -47,6 +50,17 @@ func TestOpenAPIErrorResponsesDeclareEndpointCodes(t *testing.T) {
 			map[string]string{
 				"401": "UNAUTHENTICATED", "403": "FORBIDDEN",
 				"404": "RESOURCE_NOT_FOUND", "409": "CONFLICT",
+				"429": "RATE_LIMITED", "500": "INTERNAL_ERROR",
+				"503": "SERVICE_UNAVAILABLE",
+			},
+		},
+		{
+			"/intelligence/requests/{request_id}/analyze", "post", "analyzeIntelligenceRequest",
+			map[string]string{
+				"400": "INVALID_REQUEST", "401": "UNAUTHENTICATED",
+				"403": "FORBIDDEN", "404": "RESOURCE_NOT_FOUND",
+				"413": "PAYLOAD_TOO_LARGE", "422": "UNPROCESSABLE_REQUEST",
+				"429": "RATE_LIMITED", "500": "INTERNAL_ERROR",
 				"503": "SERVICE_UNAVAILABLE",
 			},
 		},
