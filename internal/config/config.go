@@ -176,7 +176,7 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Core.BaseURL) != "" {
 		coreURL, err := url.Parse(c.Core.BaseURL)
 		if err != nil || coreURL.Host == "" || coreURL.User != nil || coreURL.RawQuery != "" || coreURL.Fragment != "" ||
-			(coreURL.Scheme != "https" && !(coreURL.Scheme == "http" && (coreURL.Hostname() == "localhost" || coreURL.Hostname() == "127.0.0.1"))) {
+			(coreURL.Scheme != "https" && !(coreURL.Scheme == "http" && (coreURL.Hostname() == "localhost" || coreURL.Hostname() == "127.0.0.1" || (c.App.Environment == "development" && coreURL.Hostname() == "host.docker.internal")))) {
 			return fmt.Errorf("configuration %s: must be an https URL (http is allowed only for localhost)", coreBaseURLKey)
 		}
 	}
