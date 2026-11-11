@@ -8,6 +8,7 @@
 ## 1. Decision gate
 
 The Phase 5 Copilot prompt explicitly instructs implementers not to select an IdP or token format while unresolved. The repository already contains a concrete RS256/JWKS verifier scaffold; its presence does not accept its identity semantics or authorize provider-specific deployment configuration. Further provider-specific IAM work must remain gated until the decisions below are accepted. A green test suite does not substitute for decision acceptance.
+The maintainer has accepted IAM-01 and IAM-02 for Supabase Auth session JWTs signed with RS256 and selected the `naeos-crm-production` Supabase project as the hosted identity provider. The selected project is `oruykkehukoiipldzcvc` (Singapore). The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database, not the token issuer. This project selection does not close IAM-03 through IAM-14. Provider-specific production configuration and authorization-claim changes remain gated until issuer/audience, principal/client semantics, tenant applicability, scope mapping, ownership, validation, revocation, propagation, denial, and audit decisions are recorded. A green test suite does not substitute for decision acceptance.
 
 ## 2. Existing verifier evidence (not an IAM decision)
 
@@ -25,8 +26,8 @@ The remaining token and identity-semantic gaps depend on IAM-01–05, IAM-10–1
 
 | ID | Decision | Options to evaluate | Recommended evaluation criteria | State |
 |---|---|---|---|---|
-| IAM-01 | Authentication protocol and token format | OIDC/OAuth 2.0 JWT access token; opaque token with introspection; service-specific signed credentials | ecosystem interoperability, validation reliability, revocation, operational complexity | Open |
-| IAM-02 | Identity provider / issuer authority | NAEOS-owned IdP; existing organization IdP; external compatible issuer(s) | control, partner onboarding, key lifecycle, availability, deployment fit | Open |
+| IAM-01 | Authentication protocol and token format | Supabase Auth session access JWT; opaque token with introspection; service-specific signed credentials | ecosystem interoperability, validation reliability, revocation, operational complexity | Accepted — Supabase Auth JWT; RS256 allowlist |
+| IAM-02 | Identity provider / issuer authority | NAEOS-owned IdP; existing organization IdP; external compatible issuer(s) | control, partner onboarding, key lifecycle, availability, deployment fit | Accepted — `naeos-crm-production` Supabase Auth project (`oruykkehukoiipldzcvc`) |
 | IAM-03 | Issuer and audience policy | Single pinned issuer/audience; allowlisted multi-issuer/audience | trust boundary, client separation, environment separation | Open |
 | IAM-04 | Principal canonicalization | Map validated `iss + sub` to principal; alternate stable provider subject mapping | uniqueness, stability, collision avoidance, attribution | Open |
 | IAM-05 | Client identity semantics | Separate OAuth client identifier from end-user principal; service principal for machine clients | clear attribution and distinction between acting client and actor | Open |
@@ -88,3 +89,6 @@ Test cases must map to requirement IDs and produce retained CI evidence.
 | IAM-06 | Accepted for MVP baseline | ADR-0003; no partner is selected, so this is a logical single-tenant boundary per deployment only | 2026-11-10 |
 | IAM-07 | Deferred for MVP | ADR-0003; reopen before shared tenancy or tenant identity is introduced | 2026-11-10 |
 | IAM-08–09, IAM-12–13 | Accepted for read-only API only | ADR-0004; scopes plus owner checks, server-derived request context, and non-disclosing denial behavior | 2026-11-10 |
+| IAM-01 | Accepted: Supabase Auth session access JWT; RS256 only | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
+| IAM-02 | Accepted: `naeos-crm-production` Supabase Auth project (`oruykkehukoiipldzcvc`, Singapore) is the IdP; `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
+| IAM-03 through IAM-14 | Open — remain gated | Project selected; remaining issuer/audience, principal, tenant, authorization, validation, lifecycle, propagation, denial, and audit decisions still required | Pending |

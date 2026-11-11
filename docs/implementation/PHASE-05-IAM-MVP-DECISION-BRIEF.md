@@ -6,6 +6,9 @@
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`, [ADR-0003](../adr/20261110-single-tenant-mvp-baseline.md)
 
 > This brief provides options and provisional recommendations for the remaining IAM decisions. The MVP tenancy baseline is recorded in accepted ADR-0003; that decision does not close other IAM items or authorize provider-specific implementation.
+**Status:** Partially accepted — IAM-01 and IAM-02 accepted; `naeos-crm-production` selected as IdP; IAM-03 through IAM-14 remain open  
+**Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
+> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. IAM-03 through IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
 
 ## 1. Decision objective
 
@@ -33,6 +36,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 **Provisional recommendation:** Prefer standard OIDC/OAuth 2.0 JWT access tokens for a partner-facing pilot only if the issuer supports required validation and lifecycle controls. Evaluate opaque introspection if prompt revocation is a requirement. Avoid bespoke credentials absent a compelling constraint.
 
 **Maintainer decision:** Open; defer exact token format until a partner/deployment model is known.
+**Maintainer decision:** Accepted — Supabase Auth session access JWT; RS256 allowlist. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
 
 ### IAM-02 — Identity provider / issuer authority
 
@@ -45,6 +49,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 **Provisional recommendation:** Use an established hosted/organization IdP for early access; do not build a custom IdP. Select the exact issuer only after partner and deployment requirements are known.
 
 **Maintainer decision:** Open; do not select an issuer without a partner/deployment requirement.
+**Maintainer decision:** Accepted — hosted Supabase Auth in `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore). `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database. The exact issuer/audience policy is still subject to IAM-03 and real-token verification. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
 
 ### IAM-03 — Issuer and audience policy
 
@@ -142,3 +147,9 @@ Maintainer input is required for these questions; this document intentionally do
 | IAM-08–09 | Accepted for read-only API | ADR-0004; claim-to-client mapping remains open | 2026-11-10 |
 | IAM-10–11, IAM-14 | Pending | Token lifetime/revocation and actor-audit requirements remain open | Pending |
 | IAM-12–13 | Accepted for read-only API | ADR-0004 | 2026-11-10 |
+| IAM-01–02 | Accepted — Supabase Auth RS256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-11 |
+| IAM-03 | Pending — pin issuer/audience per environment after real-token verification | Pending | Pending |
+| IAM-04–05 | Pending | Pending | Pending |
+| IAM-06–07 | Pending | Pending | Pending |
+| IAM-08–09 | Pending | Pending | Pending |
+| IAM-10–14 | Pending | Pending | Pending |
