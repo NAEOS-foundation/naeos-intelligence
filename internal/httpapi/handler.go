@@ -100,7 +100,7 @@ func (h *Handler) submit(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusBadRequest, "INVALID_REQUEST", "Idempotency-Key must not exceed 255 characters")
 		return
 	}
-	req, replay, err := h.store.Create(r.Context(), principal.ClientID, key, input, requestIDFrom(r))
+	req, replay, err := h.store.Create(r.Context(), principal.OwnerID(), key, input, requestIDFrom(r))
 	if errors.Is(err, ErrIdempotencyConflict) {
 		writeProblem(w, r, http.StatusConflict, "CONFLICT", "Idempotency key was used with a different request payload")
 		return
@@ -123,7 +123,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
 		return
 	}
-	req, err := h.store.Get(r.Context(), p.ClientID, r.PathValue("request_id"))
+	req, err := h.store.Get(r.Context(), p.OwnerID(), r.PathValue("request_id"))
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -141,7 +141,7 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
 		return
 	}
-	req, err := h.store.Cancel(r.Context(), p.ClientID, r.PathValue("request_id"), requestIDFrom(r))
+	req, err := h.store.Cancel(r.Context(), p.OwnerID(), r.PathValue("request_id"), requestIDFrom(r))
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -178,7 +178,7 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_REQUEST", err.Error())
 		return
 	}
-	decision, err := h.store.RecordApprovalDecision(r.Context(), p.ClientID, r.PathValue("request_id"), input.Decision, input.ApprovedBy, input.Reason)
+	decision, err := h.store.RecordApprovalDecision(r.Context(), p.OwnerID(), r.PathValue("request_id"), input.Decision, input.ApprovedBy, input.Reason)
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -209,7 +209,7 @@ func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Intelligence pipeline is not configured")
 		return
 	}
-	req, err := h.store.Get(r.Context(), p.ClientID, r.PathValue("request_id"))
+	req, err := h.store.Get(r.Context(), p.OwnerID(), r.PathValue("request_id"))
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
@@ -241,7 +241,7 @@ func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
 		contextInputs = append(contextInputs, intctx.SourceInput{Type: s.Type, Reference: s.Reference})
 	}
 
-	result, err := h.orchestrator.Run(r.Context(), p.ClientID, req.RequestID, req.Purpose, req.ExecutionMode, contextInputs, desiredOutputs, model.Request{}, nil)
+	result, err := h.orchestrator.Run(r.Context(), p.OwnerID(), req.RequestID, req.Purpose, req.ExecutionMode, contextInputs, desiredOutputs, model.Request{}, nil)
 	if err != nil {
 		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Intelligence analysis could not be completed")
 		return

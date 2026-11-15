@@ -65,6 +65,37 @@ func TestMissingBearerTokenRejected(t *testing.T) {
 	}
 }
 
+func TestSupabaseSubjectOwnsIntelligenceRequestsNotClientID(t *testing.T) {
+	store := NewMemoryStore()
+	principal := Principal{
+		Issuer:   "https://issuer.test",
+		Subject:  "user-123",
+		ClientID: "crm-web-client",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}
+	auth := Authenticator{Verifier: fakeVerifier{principal: principal}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
+
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"test canonical owner","execution_mode":"analysis_only"}`)
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("submit status=%d, want 202: %s", rec.Code, rec.Body.String())
+	}
+
+	var accepted Accepted
+	if err := json.Unmarshal(rec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted response: %v", err)
+	}
+	if _, err := store.Get(context.Background(), principal.OwnerID(), accepted.RequestID); err != nil {
+		t.Fatalf("request should be owned by issuer-qualified subject: %v", err)
+	}
+	if _, err := store.Get(context.Background(), principal.ClientID, accepted.RequestID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("client_id must not be treated as the human subject owner; err=%v", err)
+	}
+}
+
 func TestInsufficientScopeRejected(t *testing.T) {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)

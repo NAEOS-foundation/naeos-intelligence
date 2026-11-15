@@ -51,6 +51,7 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 		"iss":       verifier.issuer,
 		"aud":       verifier.audience,
 		"client_id": "svc-crm",
+		"sub":       "user-123",
 		"exp":       now + 300,
 		"nbf":       now - 10,
 		"scope":     "intelligence:read intelligence:write",
@@ -60,7 +61,9 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if principal.ClientID != "svc-crm" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
+	if principal.ClientID != "svc-crm" || principal.Subject != "user-123" || principal.Issuer != verifier.issuer ||
+		principal.OwnerID() != "user:"+verifier.issuer+":user-123" ||
+		!principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
 		t.Fatalf("unexpected principal: %+v", principal)
 	}
 }
