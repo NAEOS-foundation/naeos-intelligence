@@ -3,7 +3,7 @@
 ## Delivered
 
 - Established the Go module at `github.com/NAEOS-foundation/naeos-intelligence`.
-- Set the Go language/toolchain baseline to `1.26.11`, including the security patch uplift from the previous `1.26.10` baseline.
+- Set the Go language/toolchain baseline to `1.26.11`, aligned with the established NAEOS Go baseline.
 - Added a minimal command entrypoint at `cmd/naeos-intelligence`.
 - Added a bootstrap smoke test.
 - Added Make targets for formatting, vetting, tests, build, and aggregate checks.
@@ -20,5 +20,5 @@ The changes are committed on the feature branch and are intended to be validated
 ## Decisions / assumptions
 
 - Module path is assumed to be the canonical repository path `github.com/NAEOS-foundation/naeos-intelligence`.
-- Go `1.26.11` is the security-patched baseline now adopted in this repository.
+- Go `1.26.11` is aligned to the baseline already adopted in related NAEOS engineering repositories.
 - This phase is bootstrap-only; the minimal entrypoint prints a bootstrap marker and does not expose network services.
