@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"strings"
 )
 
@@ -47,15 +48,32 @@ func (s *Store) RecordEvents(ctx context.Context, clientID, requestID string, ev
 		}
 
 		id := deterministicEventID(clientID, requestID, event.EventType)
-		_, err = tx.Exec(ctx, `
+		var insertedID string
+		err = tx.QueryRow(ctx, `
 			INSERT INTO governance_audit_events
 				(id, request_id, client_id, event_type, actor_type, actor_id, message, correlation_id)
 			VALUES ($1,$2::uuid,$3,$4,$5,$6,$7,$8)
-			ON CONFLICT (id) DO NOTHING`,
+			ON CONFLICT (id) DO NOTHING
+			RETURNING id::text`,
 			id, requestID, clientID, event.EventType, event.ActorType, event.ActorID,
-			event.Message, nullIfBlank(event.CorrelationID))
+			event.Message, nullIfBlank(event.CorrelationID)).Scan(&insertedID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			var existing Event
+			err = tx.QueryRow(ctx, `
+				SELECT request_id::text, client_id, event_type, actor_type, actor_id, message,
+				       COALESCE(correlation_id, '')
+				FROM governance_audit_events WHERE id=$1::uuid`, id).Scan(
+				&existing.RequestID, &existing.ClientID, &existing.EventType, &existing.ActorType,
+				&existing.ActorID, &existing.Message, &existing.CorrelationID)
+			if err == nil && (existing.RequestID != requestID || existing.ClientID != clientID ||
+				existing.EventType != event.EventType || existing.ActorType != event.ActorType ||
+				existing.ActorID != event.ActorID || existing.Message != event.Message ||
+				existing.CorrelationID != event.CorrelationID) {
+				err = errors.New("event identity already exists with different content")
+			}
+		}
 		if err != nil {
-			return fmt.Errorf("insert evidence event %d (%s): %w", i, event.EventType, err)
+			return fmt.Errorf("persist evidence event %d (%s): %w", i, event.EventType, err)
 		}
 	}
 
@@ -64,7 +82,6 @@ func (s *Store) RecordEvents(ctx context.Context, clientID, requestID string, ev
 	}
 	return nil
 }
-
 
 func deterministicEventID(clientID, requestID, eventType string) string {
 	sum := sha256.Sum256([]byte(clientID + "\x00" + requestID + "\x00" + eventType))
