@@ -28,7 +28,7 @@ func TestJWKSVerifierAcceptsValidES256AndExtractsScopes(t *testing.T) {
 	defer server.Close()
 	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", jwksURL:server.URL, client:server.Client()}
 	now := time.Now().Unix()
-	token := signedTestJWT(t, privateKey, kid, map[string]any{
+	token := signedTestJWT(t, privateKey, kid, "ES256", map[string]any{
 		"iss":verifier.issuer, "aud":verifier.audience, "client_id":"svc-crm",
 		"exp":now+300, "nbf":now-10, "scope":"intelligence:read intelligence:write",
 	})
