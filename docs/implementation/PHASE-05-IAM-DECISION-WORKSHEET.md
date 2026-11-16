@@ -2,7 +2,7 @@
 
 **Document ID:** NAEOS-INT-IAM-DEC-001  
 **Version:** 0.1.0  
-**Status:** Draft — Proposed; maintainer decisions required  
+**Status:** Draft — IAM-01 and IAM-02 accepted; IAM-03 through IAM-14 remain open  
 **Scope:** Decisions required before provider-specific Phase 5 implementation. This worksheet does not constitute an accepted ADR.
 
 ## 1. Decision gate
