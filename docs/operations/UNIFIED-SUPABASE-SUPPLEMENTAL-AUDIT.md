@@ -37,3 +37,8 @@
 - Supabase Security Advisor snapshots collected 2026-11-16.
 - Read-only PostgreSQL catalog inspection of `pg_policies`, `information_schema.table_privileges`, and `pg_proc`/`pg_get_functiondef`.
 - NAEOS repository public docs and migrations: `docs/architecture/ADR-PRODUCTION-CONTROL-PLANE-SUPABASE-PERSISTENCE.md`, `supabase/migrations/20261111000100_production_control_plane.sql`, and `supabase/migrations/20261111000200_control_plane_ledger_head_reader.sql`.
+
+## CRM RLS event-trigger verification
+
+- Catalog inspection confirmed event trigger `ensure_rls` is enabled (`ddl_command_end`, status `O`) and owned by `postgres`; it invokes `public.rls_auto_enable()`.
+- Treat this trigger as an automatic RLS-enabling safeguard only, not as an authorization policy generator. It cannot substitute for explicit policies and least-privilege grants. Its logged exception path should be included in deployment observability and test coverage.
