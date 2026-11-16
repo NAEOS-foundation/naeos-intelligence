@@ -104,7 +104,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 	}
 	r := new(big.Int).SetBytes(signature[:32])
 	s := new(big.Int).SetBytes(signature[32:])
-	if r.Sign() <= 0 || s.Sign() <= 0 || r.Cmp(key.Params().N) >= 0 || s.Cmp(key.Params().N) >= 0 {
+	if r.Sign() <= 0 || s.Sign() <= 0 || r.Cmp(key.Curve.Params().N) >= 0 || s.Cmp(key.Curve.Params().N) >= 0 {
 		return Principal{}, errors.New("invalid ES256 JWT signature")
 	}
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
