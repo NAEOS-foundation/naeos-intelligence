@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"math/big"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -57,8 +58,8 @@ func TestJWKSVerifierRefreshesWhenSigningKeyIDIsUnknown(t *testing.T) {
 		key:=oldKey; kid:="key-1"; if requests.Add(1)>1 {key=newKey;kid="key-2"}
 		_ = json.NewEncoder(w).Encode(map[string]any{"keys":[]any{map[string]string{
 			"kty":"EC","use":"sig","alg":"ES256","kid":kid,"crv":"P-256",
-			"x":base64.RawURLEncoding.EncodeToString(key.X.BytesFixed(32)),
-			"y":base64.RawURLEncoding.EncodeToString(key.Y.BytesFixed(32)),
+			"x":base64.RawURLEncoding.EncodeToString(coordinateBytes(key.X)),
+			"y":base64.RawURLEncoding.EncodeToString(coordinateBytes(key.Y)),
 		}}})
 	})); defer server.Close()
 	v:=&JWKSVerifier{issuer:"https://issuer.test",audience:"naeos-api",jwksURL:server.URL,client:server.Client()}
@@ -72,10 +73,16 @@ func TestJWKSVerifierRejectsDuplicateKeyIDs(t *testing.T) {
 	key2,err:=ecdsa.GenerateKey(elliptic.P256(),rand.Reader); if err!=nil {t.Fatal(err)}
 	toJWK:=func(k *ecdsa.PrivateKey) map[string]string{return map[string]string{
 		"kty":"EC","use":"sig","alg":"ES256","kid":"same","crv":"P-256",
-		"x":base64.RawURLEncoding.EncodeToString(k.X.BytesFixed(32)),
-		"y":base64.RawURLEncoding.EncodeToString(k.Y.BytesFixed(32)),
+		"x":base64.RawURLEncoding.EncodeToString(coordinateBytes(k.X)),
+		"y":base64.RawURLEncoding.EncodeToString(coordinateBytes(k.Y)),
 	}}
 	server:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){_ = json.NewEncoder(w).Encode(map[string]any{"keys":[]any{toJWK(key1),toJWK(key2)}})})); defer server.Close()
 	v:=&JWKSVerifier{issuer:"https://issuer.test",audience:"naeos-api",jwksURL:server.URL,client:server.Client()}
 	if _,err:=v.key(context.Background(),"same"); err==nil {t.Fatal("duplicate key IDs must be rejected")}
+}
+
+func coordinateBytes(value *big.Int) []byte {
+	out := make([]byte, 32)
+	value.FillBytes(out)
+	return out
 }
