@@ -29,12 +29,12 @@ func TestJWKSVerifierAcceptsValidES256AndExtractsScopes(t *testing.T) {
 	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", jwksURL:server.URL, client:server.Client()}
 	now := time.Now().Unix()
 	token := signedTestJWT(t, privateKey, kid, "ES256", map[string]any{
-		"iss":verifier.issuer, "aud":verifier.audience, "client_id":"svc-crm",
+		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-123", "client_id":"svc-crm",
 		"exp":now+300, "nbf":now-10, "scope":"intelligence:read intelligence:write",
 	})
 	principal, err := verifier.Verify(context.Background(), token)
 	if err != nil { t.Fatal(err) }
-	if principal.ClientID!="svc-crm" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
+	if principal.ClientID!="user-123" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
 		t.Fatalf("unexpected principal: %+v", principal)
 	}
 }
