@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
@@ -30,7 +31,7 @@ type PipelineResult struct {
 
 // EvidenceRecorder is the durable evidence boundary required by the orchestrator.
 type EvidenceRecorder interface {
-	RecordEvent(ctx context.Context, clientID, requestID, eventType, actorType, actorID, message, correlationID string) error
+	RecordEvents(ctx context.Context, clientID, requestID string, events []evidence.Event) error
 }
 
 // Orchestrator coordinates classifier, context builder, planner, and runtime.
@@ -130,38 +131,53 @@ func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, ex
 		}
 	}
 
-	// 5. Record audit
+	// 5. Build the complete evidence batch. The store commits all events
+	// atomically so a failed write cannot leave a partial batch to duplicate
+	// on a later retry.
+	if o.EvidenceStore != nil {
+		events := []evidence.Event{
+			{
+				EventType: "orchestration.classified",
+				ActorType: "system",
+				ActorID:   "orchestrator",
+				Message:   fmt.Sprintf("intent=%s", classResult.Intent),
+			},
+			{
+				EventType: "orchestration.planned",
+				ActorType: "system",
+				ActorID:   "orchestrator",
+				Message:   fmt.Sprintf("tasks=%d", len(plan.Tasks)),
+			},
+		}
+
+		if o.VerificationEngine != nil {
+			vr, err := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
+			if err != nil {
+				return PipelineResult{}, fmt.Errorf("verify orchestration result: %w", err)
+			}
+			events = append(events, evidence.Event{
+				EventType:     "orchestration.verified",
+				ActorType:     "system",
+				ActorID:       "verification",
+				Message:       fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome),
+				CorrelationID: vr.VerificationID,
+			})
+		}
+
+		events = append(events, evidence.Event{
+			EventType: "orchestration.completed",
+			ActorType: "system",
+			ActorID:   "orchestrator",
+			Message:   fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed),
+		})
+		if err := o.EvidenceStore.RecordEvents(ctx, clientID, requestID, events); err != nil {
+			return PipelineResult{}, fmt.Errorf("record orchestration evidence batch: %w", err)
+		}
+	}
+
+	// The in-memory completion marker must never precede durable evidence.
 	if o.Audit != nil {
 		_ = o.Audit.Record(requestID, "orchestration.completed", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed))
-	}
-
-	// 6. Persist evidence before reporting a successful pipeline result.
-	// A failed durable write must be visible to the caller; otherwise the
-	// response could claim completion without its required audit trail.
-	if o.EvidenceStore != nil {
-		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.classified", "system", "orchestrator", fmt.Sprintf("intent=%s", classResult.Intent), ""); err != nil {
-			return PipelineResult{}, fmt.Errorf("record classified evidence: %w", err)
-		}
-		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.planned", "system", "orchestrator", fmt.Sprintf("tasks=%d", len(plan.Tasks)), ""); err != nil {
-			return PipelineResult{}, fmt.Errorf("record planned evidence: %w", err)
-		}
-	}
-
-	// 7. Verification evidence is also mandatory when verification is wired.
-	if o.VerificationEngine != nil && o.EvidenceStore != nil {
-		vr, verr := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
-		if verr != nil {
-			return PipelineResult{}, fmt.Errorf("verify orchestration result: %w", verr)
-		}
-		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.verified", "system", "verification", fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome), vr.VerificationID); err != nil {
-			return PipelineResult{}, fmt.Errorf("record verification evidence: %w", err)
-		}
-	}
-
-	if o.EvidenceStore != nil {
-		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.completed", "system", "orchestrator", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed), ""); err != nil {
-			return PipelineResult{}, fmt.Errorf("record completion evidence: %w", err)
-		}
 	}
 
 	return PipelineResult{
