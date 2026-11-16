@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // RecordEvents appends a complete orchestration evidence batch atomically.
@@ -66,4 +64,3 @@ func (s *Store) RecordEvents(ctx context.Context, clientID, requestID string, ev
 	return nil
 }
 
-var _ pgx.Tx = (pgx.Tx)(nil)
