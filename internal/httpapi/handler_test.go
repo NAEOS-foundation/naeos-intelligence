@@ -200,8 +200,8 @@ func TestApprovalEndpointRejectsCallerSuppliedApproverIdentity(t *testing.T) {
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status=%d, want 400 for caller-supplied approver identity: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d, want 422 for caller-supplied approver identity rejected by request schema: %s", rec.Code, rec.Body.String())
 	}
 }
 
