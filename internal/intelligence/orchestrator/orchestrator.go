@@ -156,28 +156,46 @@ func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, ex
 			},
 		}
 
+		var verificationErr error
 		if o.VerificationEngine != nil {
-			vr, err := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
-			if err != nil {
-				return PipelineResult{}, fmt.Errorf("verify orchestration result: %w", err)
+			vr, verifyErr := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
+			if verifyErr != nil {
+				verificationErr = fmt.Errorf("verify orchestration result: %w", verifyErr)
+				events = append(events, evidence.Event{
+					EventType: "orchestration.verification_error",
+					ActorType: "system",
+					ActorID:   "verification",
+					Message:   fmt.Sprintf("error=%s", verifyErr),
+				})
+			} else {
+				events = append(events, evidence.Event{
+					EventType:     "orchestration.verified",
+					ActorType:     "system",
+					ActorID:       "verification",
+					Message:       fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome),
+					CorrelationID: vr.VerificationID,
+				})
+				if vr.Result != verification.ResultVerified {
+					verificationErr = fmt.Errorf("verification %s: expected %q, observed %q", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome)
+				}
 			}
-			events = append(events, evidence.Event{
-				EventType:     "orchestration.verified",
-				ActorType:     "system",
-				ActorID:       "verification",
-				Message:       fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome),
-				CorrelationID: vr.VerificationID,
-			})
 		}
 
-		events = append(events, evidence.Event{
-			EventType: "orchestration.completed",
-			ActorType: "system",
-			ActorID:   "orchestrator",
-			Message:   fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed),
-		})
+		// A failed or inconclusive verification is durably recorded, but it
+		// must never be represented as a completed orchestration.
+		if verificationErr == nil {
+			events = append(events, evidence.Event{
+				EventType: "orchestration.completed",
+				ActorType: "system",
+				ActorID:   "orchestrator",
+				Message:   fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed),
+			})
+		}
 		if err := o.EvidenceStore.RecordEvents(ctx, clientID, requestID, events); err != nil {
 			return PipelineResult{}, fmt.Errorf("record orchestration evidence batch: %w", err)
+		}
+		if verificationErr != nil {
+			return PipelineResult{}, verificationErr
 		}
 	}
 
