@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
@@ -49,6 +50,10 @@ type fakePlanner struct {
 func (f *fakePlanner) Plan(ctx context.Context, requestID string, intent classifier.Intent, cx *intctx.Context, outputs []string) (planner.Plan, error) {
 	if f.err != nil {
 		return planner.Plan{}, f.err
+	}
+	if len(f.plan.Tasks) > 0 {
+		f.plan.RequestID = requestID
+		return f.plan, nil
 	}
 	return planner.Plan{RequestID: requestID, Intent: intent, Tasks: []planner.Task{{ID: "t1", Title: "task", Status: "proposed"}}}, nil
 }
@@ -401,6 +406,52 @@ func TestOrchestrator_Run_PersistsVerificationCorrelationID(t *testing.T) {
 
 func evidenceIDLooksLikeUUID(value string) bool {
 	return len(value) == 36 && value[8] == '-' && value[13] == '-' && value[18] == '-' && value[23] == '-'
+}
+
+func TestOrchestrator_Run_FailsClosedWhenVerificationFails(t *testing.T) {
+	recorder := &fakeEvidenceRecorder{}
+	failedPlan := planner.Plan{
+		Intent: classifier.IntentUnknown,
+		Tasks:  []planner.Task{{ID: "t1", Title: "task", Status: "proposed"}},
+	}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{plan: failedPlan},
+		nil,
+		recorder,
+		verification.New(),
+	)
+	o.Audit = governance.NewAuditLogger()
+
+	result, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	if err == nil {
+		t.Fatal("Run() succeeded despite failed verification")
+	}
+	if result.RequestID != "" {
+		t.Fatalf("Run() result = %+v, want empty result", result)
+	}
+	var sawFailedVerification, sawCompletion bool
+	for _, event := range recorder.records {
+		if event.EventType == "orchestration.verified" && strings.Contains(event.Message, "result=failed") {
+			sawFailedVerification = true
+			if event.CorrelationID == "" {
+				t.Error("failed verification evidence has no correlation ID")
+			}
+		}
+		if event.EventType == "orchestration.completed" {
+			sawCompletion = true
+		}
+	}
+	if !sawFailedVerification {
+		t.Fatal("failed verification was not durably recorded")
+	}
+	if sawCompletion {
+		t.Fatal("failed verification was incorrectly recorded as completed")
+	}
+	if len(o.Audit.Events()) != 0 {
+		t.Fatal("in-memory completion marker was recorded after failed verification")
+	}
 }
 
 func TestOrchestrator_Run_FailsClosedWithoutEvidenceRecorder(t *testing.T) {
