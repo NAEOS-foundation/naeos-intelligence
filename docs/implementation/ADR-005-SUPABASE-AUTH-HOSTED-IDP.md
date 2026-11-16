@@ -27,7 +27,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 
 ## Current implementation evidence
 
-- `internal/httpapi/jwks_verifier.go` validates ES256 signatures against P-256 public keys from a remote JWKS and checks issuer, audience, expiry, not-before, and key ID.
+- `internal/httpapi/jwks_verifier.go` validates ES256 signatures against P-256 public keys from a remote JWKS and checks issuer, audience, expiry, not-before, issue time, and key ID. It requires `iss`, matching `aud`, non-empty `sub`, `exp`, and `iat`; rejects `iat >= exp`; and applies a bounded 60-second clock skew to expiry/not-before and future-issued-at checks.
 - `cmd/naeos-intelligence/main.go` reads `NAEOS_AUTH_ISSUER`, `NAEOS_AUTH_AUDIENCE`, and `NAEOS_AUTH_JWKS_URL`.
 - `internal/httpapi/auth.go` fails closed when the verifier is not configured and enforces route scopes.
 - Protected routes require `intelligence:read` or `intelligence:write`.
@@ -40,7 +40,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 - IAM-06/07: single-tenant pilot or tenant model and trusted tenant binding.
 - IAM-08: Accepted capability policy and code path: Supabase Custom Access Token Hook emits dedicated `naeos_scopes` from administrator-managed `app_metadata.naeos_scopes`; NAEOS verifier allowlists `intelligence:read` and `intelligence:write`, ignores generic `scope`/`scopes` and `user_metadata`. SQL reference: `docs/implementation/supabase/NAEOS-CUSTOM-ACCESS-TOKEN-HOOK.sql`. Actual hook enablement and a real issued-token evidence remain gated; do not activate production yet.
 - IAM-09: persisted resource ownership semantics.
-- IAM-10: complete claim validation, including required claims and `iat`/clock-skew policy.
+- IAM-10: Implemented baseline requires `iss`, matching `aud`, non-empty `sub`, `exp`, and `iat`; rejects `iat >= exp`; uses 60-second clock skew for `exp`/`nbf` and future `iat`. CI verification and maintainer acceptance remain pending.
 - IAM-11: token expiry, session revocation, JWKS cache and key-rotation/revocation response.
 - IAM-12: trusted identity propagation.
 - IAM-13: 401/403/404 denial and non-disclosure behavior.
