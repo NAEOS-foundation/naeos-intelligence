@@ -20,6 +20,7 @@ import (
 const (
 	jwksCacheTTL = 5 * time.Minute
 	maxJWKSBytes = 1 << 20
+	jwtClockSkew = 60 * time.Second
 )
 
 type JWKSVerifier struct {
@@ -60,6 +61,7 @@ type jwtClaims struct {
 	ClientID  string          `json:"client_id"`
 	Audience  json.RawMessage `json:"aud"`
 	Expires   int64           `json:"exp"`
+	IssuedAt  int64           `json:"iat"`
 	NotBefore int64           `json:"nbf"`
 	NAEOSScopes []string        `json:"naeos_scopes"`
 }
@@ -127,11 +129,19 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 	if err := json.Unmarshal(claimBytes, &claims); err != nil {
 		return Principal{}, errors.New("malformed JWT claims")
 	}
-	now := time.Now().Unix()
+	now := time.Now()
+	nowUnix := now.Unix()
+	skew := int64(jwtClockSkew.Seconds())
 	if claims.Issuer != v.issuer ||
 		!audienceContains(claims.Audience, v.audience) ||
-		claims.Expires <= now ||
-		(claims.NotBefore != 0 && claims.NotBefore > now) {
+		claims.Subject == "" ||
+		claims.Expires == 0 ||
+		claims.IssuedAt == 0 ||
+		claims.Expires <= nowUnix-skew ||
+		claims.IssuedAt > nowUnix+skew ||
+		claims.IssuedAt >= claims.Expires ||
+		(claims.NotBefore != 0 && claims.NotBefore > nowUnix+skew) ||
+		(claims.NotBefore != 0 && claims.NotBefore >= claims.Expires) {
 		return Principal{}, errors.New("JWT claims failed validation")
 	}
 	// IAM-04/05: Supabase Auth human-user identity is the verified issuer
