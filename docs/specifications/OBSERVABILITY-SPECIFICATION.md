@@ -404,7 +404,7 @@ The system SHOULD support:
 - Telemetry retention policies.
 - Controlled access to historical telemetry.
 
-Retention durations remain an operational decision.
+Retention durations remain an operational decision. Proposed pilot default for review: 365 days for security audit records, subject to legal/privacy review and documented purpose; do not treat this duration as accepted. Define exceptions for legal hold, incident investigations, and deletion requests, and ensure retention jobs cannot silently mutate append-only audit evidence.
 
 ---
 

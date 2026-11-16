@@ -158,7 +158,7 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	}
 
 	// Record an approval decision
-	body := `{"decision":"approved","approved_by":"alice","reason":"risk assessed"}`
+	body := `{"decision":"approved","reason":"risk assessed"}`
 	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
@@ -173,11 +173,35 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	if decision.Decision != "approved" {
 		t.Fatalf("decision=%q, want approved", decision.Decision)
 	}
-	if decision.ApprovedBy != "alice" {
-		t.Fatalf("approved_by=%q, want alice", decision.ApprovedBy)
+	if decision.ApprovedBy != "client-a" {
+		t.Fatalf("approved_by=%q, want verified principal client-a", decision.ApprovedBy)
 	}
 	if decision.RequestID != req.RequestID {
 		t.Fatalf("request_id=%q, want %q", decision.RequestID, req.RequestID)
+	}
+}
+
+func TestApprovalEndpointRejectsCallerSuppliedApproverIdentity(t *testing.T) {
+	store := NewMemoryStore()
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
+		ClientID: "client-a",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
+
+	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// approved_by is no longer an API input: caller identity must come from the verified JWT principal.
+	body := `{"decision":"approved","approved_by":"attacker","reason":"spoof attempt"}`
+	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d, want 422 for caller-supplied approver identity rejected by request schema: %s", rec.Code, rec.Body.String())
 	}
 }
 

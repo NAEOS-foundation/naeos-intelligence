@@ -65,7 +65,6 @@ type CancellationAccepted struct {
 
 type ApprovalDecisionInput struct {
 	Decision   string `json:"decision"`
-	ApprovedBy string `json:"approved_by,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 }
 

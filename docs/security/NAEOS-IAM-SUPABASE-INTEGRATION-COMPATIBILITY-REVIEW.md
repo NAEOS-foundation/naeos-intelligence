@@ -7,14 +7,14 @@
 
 ## 1. Executive finding
 
-The current verifier can validate an RS256 JWT against a configured JWKS and checks issuer, audience, expiry, and not-before. However, the current principal model is not yet a safe, fully specified mapping for Supabase Auth human-user sessions.
+The current verifier can validate an ES256 JWT against a configured JWKS and checks issuer, audience, expiry, and not-before. However, the current principal model is not yet a safe, fully specified mapping for Supabase Auth human-user sessions.
 
 Two compatibility decisions remain blockers:
 
 1. The verifier maps `client_id` to `Principal.ClientID` when present, falling back to `sub`. The HTTP handlers then use `Principal.ClientID` as the storage ownership key. This conflates OAuth client identity and the authenticated subject unless an explicit policy defines the intended mapping.
 2. Protected routes require NAEOS-specific scopes (`intelligence:read` and `intelligence:write`). The verifier extracts only `scope` and `scopes`; there is no trusted mapping from Supabase Auth's authenticated role or application metadata to NAEOS capabilities in the reviewed code. Do not treat the generic `authenticated` database role as an NAEOS API scope.
 
-These are design/authorization gaps, not evidence that the RS256 signature verifier is broken.
+These are design/authorization gaps, not evidence that the signature-verification primitive is broken.
 
 ## 2. Code evidence
 
@@ -49,7 +49,7 @@ No one of these choices should be inferred solely from the current `Principal.Cl
 Before enabling the selected CRM issuer in any deployed environment:
 
 1. Inspect a real access token locally and confirm `alg`, `kid`, `iss`, `aud`, `sub`, `exp`, and optional `nbf`. Never share the raw token.
-2. Confirm the live JWKS has a matching RSA signing key for the token's `kid`.
+2. Confirm the live JWKS has a matching EC P-256 signing key for the token's `kid`.
 3. Add tests for subject/client separation and the approved canonical principal mapping.
 4. Add positive and negative tests for the trusted NAEOS scope mapping.
 5. Add resource ownership tests proving one principal/client cannot read, cancel, or approve another principal/client's request.
@@ -57,7 +57,7 @@ Before enabling the selected CRM issuer in any deployed environment:
 
 ## 5. Non-actions
 
-- No code or runtime authorization behavior was changed by this review.
+- This compatibility review predates the ES256 verifier implementation; see the ES256 implementation PR and its CI evidence for current cryptographic behavior.
 - No Supabase Auth hook, JWT template, signing-key setting, or production environment variable was changed.
 - No RLS policy, database grant, migration, or production database setting was changed.
 - This report does not close IAM-04, IAM-05, IAM-08, or IAM-09 and does not authorize production activation.
