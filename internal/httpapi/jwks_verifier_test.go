@@ -139,6 +139,45 @@ func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 	})}
 }
 
+func TestJWKSVerifierRefreshesOnUnknownKeyIDForRotation(t *testing.T) {
+	oldKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil { t.Fatal(err) }
+	newKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil { t.Fatal(err) }
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{ecJWK(newKey, "rotated-kid")}})
+	}))
+	defer server.Close()
+	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", jwksURL:server.URL, client:server.Client(),
+		keys:map[string]*ecdsa.PublicKey{"old-kid":&oldKey.PublicKey}, fetchedAt:time.Now()}
+	token := signedTestJWT(t, newKey, "rotated-kid", "ES256", map[string]any{
+		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-123", "exp":time.Now().Unix()+300,
+	})
+	if _, err := verifier.Verify(context.Background(), token); err != nil {
+		t.Fatalf("unknown kid should trigger refresh and accept the rotated trusted key: %v", err)
+	}
+	if requests != 1 { t.Fatalf("expected one JWKS refresh, got %d", requests) }
+}
+
+func TestJWKSVerifierFailsClosedWhenRefreshUnavailableEvenWithStaleCache(t *testing.T) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil { t.Fatal(err) }
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", jwksURL:server.URL, client:server.Client(),
+		keys:map[string]*ecdsa.PublicKey{"kid":&privateKey.PublicKey}, fetchedAt:time.Now().Add(-jwksCacheTTL-time.Second)}
+	token := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{
+		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-123", "exp":time.Now().Unix()+300,
+	})
+	if _, err := verifier.Verify(context.Background(), token); err == nil {
+		t.Fatal("expired JWKS cache must not be used when refresh fails")
+	}
+}
+
 func ecJWK(key *ecdsa.PrivateKey,kid string) map[string]any {
 	return map[string]any{"kty":"EC","use":"sig","alg":"ES256","kid":kid,"crv":"P-256",
 		"x":base64.RawURLEncoding.EncodeToString(coordinateBytes(key.X)),
