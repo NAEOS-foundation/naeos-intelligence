@@ -135,12 +135,13 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		(claims.NotBefore != 0 && claims.NotBefore > now) {
 		return Principal{}, errors.New("JWT claims failed validation")
 	}
-	clientID := strings.TrimSpace(claims.ClientID)
+	// IAM-04/05: Supabase Auth human-user identity is the verified issuer
+	// namespace plus subject. Do not substitute OAuth client_id for sub:
+	// they represent different identity domains. ClientID is retained in the
+	// existing API model as the ownership key, but is populated only from sub.
+	clientID := strings.TrimSpace(claims.Subject)
 	if clientID == "" {
-		clientID = strings.TrimSpace(claims.Subject)
-	}
-	if clientID == "" {
-		return Principal{}, errors.New("JWT has no client identity")
+		return Principal{}, errors.New("JWT has no subject identity")
 	}
 	scopes := make(map[string]bool)
 	for _, scope := range strings.Fields(claims.Scope) {
