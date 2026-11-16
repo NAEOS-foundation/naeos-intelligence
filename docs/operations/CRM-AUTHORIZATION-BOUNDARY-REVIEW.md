@@ -52,3 +52,10 @@ No SQL changes against production or secret/deployment changes are authorized by
 - backup/restore evidence and staging rehearsal exist;
 - security-negative tests pass;
 - cutover and rollback steps are signed off.
+
+## Supabase platform inventory cross-check
+
+- Both projects report zero deployed Supabase Edge Functions and only the default `main` development branch in their Supabase branch inventory.
+- Supabase migration tracker: staging `naeos.db` has three entries (one historical `new-migration` and two Control Plane migrations); CRM production has zero entries.
+- This tracker is distinct from CRM Prisma `_prisma_migrations`, which previously inventoried 12 migration rows. The absence of Supabase-tracker records on CRM does not mean CRM schema has no migrations; Prisma remains the schema lifecycle owner for its `public` tables.
+- Cutover plan must explicitly coordinate the Control Plane Supabase migration history and CRM Prisma history without adopting one tool to own the other's schema. Do not apply Intelligence migrations via Prisma.
