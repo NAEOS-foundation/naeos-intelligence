@@ -2,12 +2,12 @@
 
 **Document ID:** NAEOS-INT-IAM-DEC-001  
 **Version:** 0.1.0  
-**Status:** Draft — Proposed; maintainer decisions required  
+**Status:** Partially accepted — IAM-01, IAM-02, IAM-06, and IAM-07 accepted; IAM-03 through IAM-05 and IAM-08 through IAM-14 remain open  
 **Scope:** Decisions required before provider-specific Phase 5 implementation. This worksheet does not constitute an accepted ADR.
 
 ## 1. Decision gate
 
-The maintainer has accepted IAM-01 and IAM-02 for Supabase Auth session JWTs signed with RS256 and selected the `naeos-crm-production` Supabase project as the hosted identity provider. The selected project is `oruykkehukoiipldzcvc` (Singapore). The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database, not the token issuer. This project selection does not close IAM-03 through IAM-14. Provider-specific production configuration and authorization-claim changes remain gated until issuer/audience, principal/client semantics, tenant applicability, scope mapping, ownership, validation, revocation, propagation, denial, and audit decisions are recorded. A green test suite does not substitute for decision acceptance.
+The maintainer has accepted IAM-01 and IAM-02 for Supabase Auth session JWTs signed with RS256 and selected the `naeos-crm-production` Supabase project as the hosted identity provider. The selected project is `oruykkehukoiipldzcvc` (Singapore). The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database, not the token issuer. The maintainer has additionally accepted an isolated single-partner deployment model for early access (IAM-06) and a deployment-bound partner identity model (IAM-07). Each partner is assigned a distinct deployment and data boundary; the partner binding is server-side deployment configuration, not a caller-supplied tenant claim/header. No shared claims-based multi-tenancy is enabled for this MVP. This does not decide resource ownership (IAM-09), OAuth client semantics (IAM-05), or issuer/audience policy (IAM-03). Provider-specific production configuration and authorization-claim changes remain gated until the remaining decisions and real-token verification are recorded. A green test suite does not substitute for decision acceptance.
 
 ## 2. Decision register
 
@@ -18,8 +18,8 @@ The maintainer has accepted IAM-01 and IAM-02 for Supabase Auth session JWTs sig
 | IAM-03 | Issuer and audience policy | Single pinned issuer/audience; allowlisted multi-issuer/audience | trust boundary, client separation, environment separation | Open |
 | IAM-04 | Principal canonicalization | Map validated `iss + sub` to principal; alternate stable provider subject mapping | uniqueness, stability, collision avoidance, attribution | Open |
 | IAM-05 | Client identity semantics | Separate OAuth client identifier from end-user principal; service principal for machine clients | clear attribution and distinction between acting client and actor | Open |
-| IAM-06 | Tenant applicability and source of truth | Single-tenant MVP; tenant-scoped deployment; claims-based multi-tenancy | early-access operating model, isolation requirements, schema migration cost | Open |
-| IAM-07 | Tenant claim and ownership binding | Trusted claim mapped to canonical tenant ID; server-side client/tenant registry; combination | prevent tenant claim spoofing and mismatched client/tenant bindings | Open |
+| IAM-06 | Tenant applicability and source of truth | Single-tenant MVP; tenant-scoped deployment; claims-based multi-tenancy | early-access operating model, isolation requirements, schema migration cost | Accepted — isolated deployment per partner; no shared multi-tenancy in MVP |
+| IAM-07 | Tenant claim and ownership binding | Trusted claim mapped to canonical tenant ID; server-side client/tenant registry; combination | prevent tenant claim spoofing and mismatched client/tenant bindings | Accepted — partner identity bound server-side to its isolated deployment; no caller-supplied tenant claim/header |
 | IAM-08 | Authorization vocabulary | Roles; capabilities/scopes; resource ownership checks; layered model | least privilege, ease of audit, explicit operation mapping | Open |
 | IAM-09 | Resource ownership semantics | Owner client; principal; tenant; mixed explicit ownership policy | request/result access control and consistent persistence enforcement | Open |
 | IAM-10 | Token validation requirements | Signature algorithm allowlist; JWKS key selection; issuer/audience; exp/nbf/iat; required claims | standards conformance, reject malformed/ambiguous claims, clock skew policy | Open |
@@ -74,4 +74,6 @@ Test cases must map to requirement IDs and produce retained CI evidence.
 |---|---|---|---|
 | IAM-01 | Accepted: Supabase Auth session access JWT; RS256 only | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
 | IAM-02 | Accepted: `naeos-crm-production` Supabase Auth project (`oruykkehukoiipldzcvc`, Singapore) is the IdP; `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
-| IAM-03 through IAM-14 | Open — remain gated | Project selected; remaining issuer/audience, principal, tenant, authorization, validation, lifecycle, propagation, denial, and audit decisions still required | Pending |
+| IAM-03 through IAM-05, IAM-08 through IAM-14 | Open — remain gated | Issuer/audience, principal/client semantics, authorization, resource ownership, validation, lifecycle, propagation, denial, and audit decisions still required | Pending |
+| IAM-06 | Accepted — isolated single-partner deployment per early-access partner; no shared claims-based multi-tenancy | Explicit maintainer confirmation in ChatGPT; architecture baseline only, not deployment authorization | 2026-11-16 |
+| IAM-07 | Accepted — partner binding is server-side and deployment-scoped; no caller-controlled tenant claim/header | Explicit maintainer confirmation in ChatGPT; do not infer resource ownership or OAuth client semantics | 2026-11-16
