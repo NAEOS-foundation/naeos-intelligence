@@ -30,12 +30,44 @@ func TestJWKSVerifierAcceptsValidES256AndExtractsScopes(t *testing.T) {
 	now := time.Now().Unix()
 	token := signedTestJWT(t, privateKey, kid, "ES256", map[string]any{
 		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-123", "client_id":"svc-crm",
-		"exp":now+300, "nbf":now-10, "scope":"intelligence:read intelligence:write",
+		"exp":now+300, "nbf":now-10, "naeos_scopes":[]string{"intelligence:read","intelligence:write"},
 	})
 	principal, err := verifier.Verify(context.Background(), token)
 	if err != nil { t.Fatal(err) }
 	if principal.ClientID!="user-123" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
 		t.Fatalf("unexpected principal: %+v", principal)
+	}
+}
+
+func TestJWKSVerifierIgnoresUntrustedScopeSources(t *testing.T) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil { t.Fatal(err) }
+	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", keys:map[string]*ecdsa.PublicKey{"kid":&privateKey.PublicKey}, fetchedAt:time.Now()}
+	now := time.Now().Unix()
+	claims := map[string]any{
+		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-123", "exp":now+300,
+		"scope":"intelligence:read intelligence:write",
+		"scopes":[]string{"intelligence:read"},
+		"user_metadata":map[string]any{"naeos_scopes":[]string{"intelligence:write"}},
+	}
+	token := signedTestJWT(t, privateKey, "kid", "ES256", claims)
+	principal, err := verifier.Verify(context.Background(), token)
+	if err != nil { t.Fatal(err) }
+	if len(principal.Scopes) != 0 { t.Fatalf("generic scope/scopes and user_metadata must not grant NAEOS capabilities: %+v", principal.Scopes) }
+}
+
+func TestJWKSVerifierAllowlistFiltersNAEOSScopes(t *testing.T) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil { t.Fatal(err) }
+	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", keys:map[string]*ecdsa.PublicKey{"kid":&privateKey.PublicKey}, fetchedAt:time.Now()}
+	token := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{
+		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-123", "exp":time.Now().Unix()+300,
+		"naeos_scopes":[]string{"intelligence:read", "admin:*", "intelligence:write", "intelligence:read"},
+	})
+	principal, err := verifier.Verify(context.Background(), token)
+	if err != nil { t.Fatal(err) }
+	if len(principal.Scopes) != 2 || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
+		t.Fatalf("unexpected allowlisted capability set: %+v", principal.Scopes)
 	}
 }
 
