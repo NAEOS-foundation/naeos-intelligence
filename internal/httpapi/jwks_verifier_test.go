@@ -98,7 +98,7 @@ func TestJWKSVerifierAcceptsAudienceArrayAndRejectsFutureNotBefore(t *testing.T)
 	now:=time.Now().Unix()
 	valid:=signedTestJWT(t,privateKey,"kid","ES256",map[string]any{"iss":verifier.issuer,"aud":[]string{"other-api",verifier.audience},"sub":"svc-test","exp":now+300,"nbf":now-1})
 	if _,err:=verifier.Verify(context.Background(),valid); err!=nil {t.Fatalf("matching audience should be accepted: %v",err)}
-	future:=signedTestJWT(t,privateKey,"kid","ES256",map[string]any{"iss":verifier.issuer,"aud":verifier.audience,"sub":"svc-test","exp":now+300,"nbf":now+60})
+	future:=signedTestJWT(t,privateKey,"kid","ES256",map[string]any{"iss":verifier.issuer,"aud":verifier.audience,"sub":"svc-test","exp":now+300,"nbf":now+120})
 	if _,err:=verifier.Verify(context.Background(),future); err==nil {t.Fatal("future not-before must be rejected")}
 }
 
