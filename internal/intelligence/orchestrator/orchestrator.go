@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
@@ -29,6 +28,11 @@ type PipelineResult struct {
 	CreatedAt      time.Time         `json:"created_at"`
 }
 
+// EvidenceRecorder is the durable evidence boundary required by the orchestrator.
+type EvidenceRecorder interface {
+	RecordEvent(ctx context.Context, clientID, requestID, eventType, actorType, actorID, message, correlationID string) error
+}
+
 // Orchestrator coordinates classifier, context builder, planner, and runtime.
 type Orchestrator struct {
 	Classifier         classifier.Classifier
@@ -37,7 +41,7 @@ type Orchestrator struct {
 	Processor          *runtime.Processor
 	Approval           *governance.ApprovalWorkflow
 	Audit              *governance.AuditLogger
-	EvidenceStore      *evidence.Store
+	EvidenceStore      EvidenceRecorder
 	VerificationEngine *verification.Engine
 }
 
@@ -52,7 +56,7 @@ func NewOrchestrator(cl classifier.Classifier, cb intctx.Builder, pl planner.Pla
 }
 
 // NewOrchestratorWithEvidence creates an orchestrator with evidence and verification wired in.
-func NewOrchestratorWithEvidence(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor, es *evidence.Store, ve *verification.Engine) *Orchestrator {
+func NewOrchestratorWithEvidence(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor, es EvidenceRecorder, ve *verification.Engine) *Orchestrator {
 	return &Orchestrator{
 		Classifier:         cl,
 		Context:            cb,
@@ -131,18 +135,32 @@ func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, ex
 		_ = o.Audit.Record(requestID, "orchestration.completed", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed))
 	}
 
-	// 6. Record evidence events (fail-safe; does not fail the pipeline)
+	// 6. Persist evidence before reporting a successful pipeline result.
+	// A failed durable write must be visible to the caller; otherwise the
+	// response could claim completion without its required audit trail.
 	if o.EvidenceStore != nil {
-		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.classified", "system", "orchestrator", fmt.Sprintf("intent=%s", classResult.Intent), "")
-		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.planned", "system", "orchestrator", fmt.Sprintf("tasks=%d", len(plan.Tasks)), "")
-		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.completed", "system", "orchestrator", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed), "")
+		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.classified", "system", "orchestrator", fmt.Sprintf("intent=%s", classResult.Intent), ""); err != nil {
+			return PipelineResult{}, fmt.Errorf("record classified evidence: %w", err)
+		}
+		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.planned", "system", "orchestrator", fmt.Sprintf("tasks=%d", len(plan.Tasks)), ""); err != nil {
+			return PipelineResult{}, fmt.Errorf("record planned evidence: %w", err)
+		}
 	}
 
-	// 7. Run verification and record result as evidence (fail-safe)
+	// 7. Verification evidence is also mandatory when verification is wired.
 	if o.VerificationEngine != nil && o.EvidenceStore != nil {
 		vr, verr := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
-		if verr == nil {
-			_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.verified", "system", "verification", fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome), vr.VerificationID)
+		if verr != nil {
+			return PipelineResult{}, fmt.Errorf("verify orchestration result: %w", verr)
+		}
+		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.verified", "system", "verification", fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome), vr.VerificationID); err != nil {
+			return PipelineResult{}, fmt.Errorf("record verification evidence: %w", err)
+		}
+	}
+
+	if o.EvidenceStore != nil {
+		if err := o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.completed", "system", "orchestrator", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed), ""); err != nil {
+			return PipelineResult{}, fmt.Errorf("record completion evidence: %w", err)
 		}
 	}
 
