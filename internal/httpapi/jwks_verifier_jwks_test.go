@@ -15,19 +15,29 @@ import (
 )
 
 func TestJWKSVerifierRejectsDocumentsWithoutUsableSigningKeys(t *testing.T) {
-	tests:=[]struct{name string; keys []map[string]string}{
-		{"non EC key",map[string]string{"kty":"RSA","use":"sig","alg":"ES256","kid":"key-1","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}},
-		{"wrong curve",map[string]string{"kty":"EC","use":"sig","alg":"ES256","kid":"key-1","crv":"P-384","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}},
-		{"encryption key",map[string]string{"kty":"EC","use":"enc","alg":"ES256","kid":"key-1","crv":"P-256","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}},
-		{"wrong algorithm",map[string]string{"kty":"EC","use":"sig","alg":"ES384","kid":"key-1","crv":"P-256","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}},
-		{"missing key id",map[string]string{"kty":"EC","use":"sig","alg":"ES256","crv":"P-256","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}},
-		{"invalid coordinates",map[string]string{"kty":"EC","use":"sig","alg":"ES256","kid":"key-1","crv":"P-256","x":"AQ","y":"AQ"}},
-	}
-	for _,tt:=range tests {t.Run(tt.name,func(t *testing.T){
-		server:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){_ = json.NewEncoder(w).Encode(map[string]any{"keys":[]any{tt.keys}})})); defer server.Close()
-		v:=&JWKSVerifier{issuer:"https://issuer.test",audience:"naeos-api",jwksURL:server.URL,client:server.Client()}
-		if _,err:=v.key(context.Background(),"key-1"); err==nil {t.Fatal("JWKS without acceptable ES256 key must be rejected")}
-	})}
+ tests := []struct {
+  name string
+  keys []map[string]string
+ }{
+  {"non EC key", []map[string]string{{"kty":"RSA","use":"sig","alg":"ES256","kid":"key-1","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}}},
+  {"wrong curve", []map[string]string{{"kty":"EC","use":"sig","alg":"ES256","kid":"key-1","crv":"P-384","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}}},
+  {"encryption key", []map[string]string{{"kty":"EC","use":"enc","alg":"ES256","kid":"key-1","crv":"P-256","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}}},
+  {"wrong algorithm", []map[string]string{{"kty":"EC","use":"sig","alg":"ES384","kid":"key-1","crv":"P-256","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}}},
+  {"missing key id", []map[string]string{{"kty":"EC","use":"sig","alg":"ES256","crv":"P-256","x":strings.Repeat("A",43),"y":strings.Repeat("A",43)}}},
+  {"invalid coordinates", []map[string]string{{"kty":"EC","use":"sig","alg":"ES256","kid":"key-1","crv":"P-256","x":"AQ","y":"AQ"}}},
+ }
+ for _, tt := range tests {
+  t.Run(tt.name, func(t *testing.T) {
+   server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    _ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{tt.keys[0]}})
+   }))
+   defer server.Close()
+   v := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", jwksURL:server.URL, client:server.Client()}
+   if _, err := v.key(context.Background(), "key-1"); err == nil {
+    t.Fatal("JWKS without acceptable ES256 key must be rejected")
+   }
+  })
+ }
 }
 
 func TestJWKSVerifierRejectsUnsuccessfulAndMalformedJWKSResponses(t *testing.T) {
