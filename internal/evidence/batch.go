@@ -86,8 +86,8 @@ func (s *Store) RecordEvents(ctx context.Context, clientID, requestID string, ev
 func deterministicEventID(clientID, requestID, eventType string) string {
 	sum := sha256.Sum256([]byte(clientID + "\x00" + requestID + "\x00" + eventType))
 	id := sum[:16]
-	// Mark the UUID as a name-based UUID (version 5) with the RFC 4122 variant.
-	id[6] = (id[6] & 0x0f) | 0x50
+	// Mark the hash-derived identifier as a custom UUID (version 8) with the RFC variant.
+	id[6] = (id[6] & 0x0f) | 0x80
 	id[8] = (id[8] & 0x3f) | 0x80
 	encoded := hex.EncodeToString(id)
 	return encoded[:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:]
