@@ -49,6 +49,10 @@ func TestJWKSVerifierRejectsWrongAlgorithmsAndExpiredClaims(t *testing.T) {
 		token := unsignedOrSignedHeaderToken(t, privateKey, "kid", alg)
 		if _,err:=verifier.Verify(context.Background(),token); err==nil { t.Fatalf("%s token must be rejected",alg) }
 	}
+	for _, rawHeader := range []string{`{"alg":"ES256","kid":"kid","crit":["unknown"]}`, `{"alg":"ES256","kid":"kid","b64":false}`} {
+		token := base64.RawURLEncoding.EncodeToString([]byte(rawHeader)) + "." + base64.RawURLEncoding.EncodeToString([]byte(`{}`)) + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64))
+		if _,err:=verifier.Verify(context.Background(),token); err==nil { t.Fatalf("unsupported critical JWT header must be rejected: %s",rawHeader) }
+	}
 }
 
 func TestNewJWKSVerifierRequiresHTTPSAndCompleteConfig(t *testing.T) {
