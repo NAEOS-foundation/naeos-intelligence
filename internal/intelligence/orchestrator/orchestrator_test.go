@@ -278,3 +278,78 @@ func TestNewOrchestrator_NilFields(t *testing.T) {
 		t.Error("fields should be assigned as-is even when nil")
 	}
 }
+
+type fakeEvidenceRecorder struct {
+	failEvent string
+	err       error
+	events    []string
+}
+
+func (f *fakeEvidenceRecorder) RecordEvent(_ context.Context, _, _, eventType, _, _, _, _ string) error {
+	f.events = append(f.events, eventType)
+	if eventType == f.failEvent {
+		if f.err != nil {
+			return f.err
+		}
+		return errors.New("evidence write failed")
+	}
+	return nil
+}
+
+func TestOrchestrator_Run_FailsWhenEvidencePersistenceFails(t *testing.T) {
+	writeErr := errors.New("database unavailable")
+	evidence := &fakeEvidenceRecorder{failEvent: "orchestration.planned", err: writeErr}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+		evidence,
+		nil,
+	)
+
+	res, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	if err == nil {
+		t.Fatal("expected evidence persistence error")
+	}
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("error = %v, want wrapped database error", err)
+	}
+	if res.RequestID != "" {
+		t.Fatalf("result = %+v, want empty result on persistence failure", res)
+	}
+	want := []string{"orchestration.classified", "orchestration.planned"}
+	if len(evidence.events) != len(want) {
+		t.Fatalf("events = %v, want %v", evidence.events, want)
+	}
+	for i := range want {
+		if evidence.events[i] != want[i] {
+			t.Fatalf("events = %v, want %v", evidence.events, want)
+		}
+	}
+}
+
+func TestOrchestrator_Run_RecordsCompletionLast(t *testing.T) {
+	evidence := &fakeEvidenceRecorder{}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+		evidence,
+		nil,
+	)
+
+	if _, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	want := []string{"orchestration.classified", "orchestration.planned", "orchestration.completed"}
+	if len(evidence.events) != len(want) {
+		t.Fatalf("events = %v, want %v", evidence.events, want)
+	}
+	for i := range want {
+		if evidence.events[i] != want[i] {
+			t.Fatalf("events = %v, want %v", evidence.events, want)
+		}
+	}
+}
