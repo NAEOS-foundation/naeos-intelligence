@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 )
 
@@ -31,9 +32,15 @@ func TestRecordEventsPostgresAtomicReplayAndConflict(t *testing.T) {
 	}
 	defer pool.Close()
 
-	store := evidence.New(pool)
-	requestID := fmt.Sprintf("00000000-0000-4000-8000-%012x", uint64(time.Now().UnixNano())&0xffffffffffff)
 	clientID := fmt.Sprintf("evidence-integration-%d", time.Now().UnixNano())
+	request, _, err := postgres.New(pool).Create(ctx, clientID, "", httpapi.RequestInput{
+		Purpose: "evidence batch integration test", ExecutionMode: "analysis_only",
+	}, "evidence-batch-integration")
+	if err != nil {
+		t.Fatalf("create parent request: %v", err)
+	}
+	store := evidence.New(pool)
+	requestID := request.RequestID
 	batch := []evidence.Event{
 		{EventType: "integration.classified", ActorType: "system", ActorID: "test", Message: "intent=repository_analysis"},
 		{EventType: "integration.planned", ActorType: "system", ActorID: "test", Message: "tasks=1"},
