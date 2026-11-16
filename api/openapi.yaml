@@ -325,7 +325,6 @@ components:
       required: [decision]
       properties:
         decision: { type: string, enum: [approved, denied, rejected] }
-        approved_by: { type: string, maxLength: 256 }
         reason: { type: string, maxLength: 1000 }
     ApprovalDecisionResponse:
       type: object
