@@ -48,8 +48,10 @@ type jwk struct {
 }
 
 type jwtHeader struct {
-	Alg string `json:"alg"`
-	Kid string `json:"kid"`
+	Alg  string   `json:"alg"`
+	Kid  string   `json:"kid"`
+	Crit []string `json:"crit"`
+	B64  *bool    `json:"b64"`
 }
 
 type jwtClaims struct {
@@ -73,11 +75,18 @@ func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
 	if !strings.HasPrefix(issuer, "https://") || !strings.HasPrefix(jwksURL, "https://") {
 		return nil, errors.New("JWT issuer and JWKS URL must use HTTPS")
 	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 || len(via) == 0 || req.URL.Scheme != "https" || !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
 	return &JWKSVerifier{
 		issuer:   issuer,
 		audience: audience,
 		jwksURL:  jwksURL,
-		client:   &http.Client{Timeout: 5 * time.Second},
+		client:   client,
 	}, nil
 }
 
@@ -91,7 +100,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		return Principal{}, errors.New("malformed JWT header")
 	}
 	var header jwtHeader
-	if err := json.Unmarshal(headerBytes, &header); err != nil || header.Alg != "ES256" || header.Kid == "" {
+	if err := json.Unmarshal(headerBytes, &header); err != nil || header.Alg != "ES256" || header.Kid == "" || len(header.Crit) != 0 || (header.B64 != nil && !*header.B64) {
 		return Principal{}, errors.New("unsupported JWT header")
 	}
 	key, err := v.key(ctx, header.Kid)
