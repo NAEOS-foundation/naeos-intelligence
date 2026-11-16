@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"math/big"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -79,10 +78,4 @@ func TestJWKSVerifierRejectsDuplicateKeyIDs(t *testing.T) {
 	server:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){_ = json.NewEncoder(w).Encode(map[string]any{"keys":[]any{toJWK(key1),toJWK(key2)}})})); defer server.Close()
 	v:=&JWKSVerifier{issuer:"https://issuer.test",audience:"naeos-api",jwksURL:server.URL,client:server.Client()}
 	if _,err:=v.key(context.Background(),"same"); err==nil {t.Fatal("duplicate key IDs must be rejected")}
-}
-
-func coordinateBytes(value *big.Int) []byte {
-	out := make([]byte, 32)
-	value.FillBytes(out)
-	return out
 }
