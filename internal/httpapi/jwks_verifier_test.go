@@ -122,6 +122,10 @@ func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 	base:=map[string]any{"iss":verifier.issuer,"aud":verifier.audience,"sub":"svc-test","exp":time.Now().Unix()+300}
 	tests:=[]struct{name string; mutate func(map[string]any)}{
 		{"missing expiry",func(c map[string]any){delete(c,"exp")}},
+		{"missing issued-at",func(c map[string]any){c["iat"]=int64(0)}},
+		{"future issued-at",func(c map[string]any){c["iat"]=time.Now().Unix()+120}},
+		{"issued-at after expiry",func(c map[string]any){c["iat"]=time.Now().Unix()+600}},
+		{"not-before after expiry",func(c map[string]any){c["nbf"]=time.Now().Unix()+600}},
 		{"missing issuer",func(c map[string]any){delete(c,"iss")}},
 		{"wrong issuer",func(c map[string]any){c["iss"]="https://attacker.test"}},
 		{"wrong audience",func(c map[string]any){c["aud"]=[]string{"other-api"}}},
@@ -145,6 +149,7 @@ func ecJWK(key *ecdsa.PrivateKey,kid string) map[string]any {
 func signedTestJWT(t *testing.T,key *ecdsa.PrivateKey,kid,alg string,claims any) string {
 	t.Helper()
 	header,err:=json.Marshal(map[string]string{"alg":alg,"kid":kid,"typ":"JWT"}); if err!=nil {t.Fatal(err)}
+	if claimMap,ok:=claims.(map[string]any); ok { if _,exists:=claimMap["iat"]; !exists { claimMap["iat"]=time.Now().Unix() } }
 	payload,err:=json.Marshal(claims); if err!=nil {t.Fatal(err)}
 	encodedHeader:=base64.RawURLEncoding.EncodeToString(header)
 	encodedPayload:=base64.RawURLEncoding.EncodeToString(payload)
