@@ -2,14 +2,14 @@
 
 **Document ID:** NAEOS-INT-IAM-BRIEF-001  
 **Version:** 0.1.0  
-**Status:** Partially accepted — IAM-01 and IAM-02 accepted; `naeos-crm-production` selected as IdP; IAM-03 through IAM-14 remain open  
+**Status:** Partially accepted — IAM-01, IAM-02, IAM-06, and IAM-07 accepted; `naeos-crm-production` selected as IdP; remaining IAM decisions open  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
 
-> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. IAM-03 through IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
+> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. IAM-03 through IAM-05 and IAM-08 through IAM-14 remain open. The maintainer has accepted isolated single-partner deployments and server-side deployment-to-partner binding for IAM-06/07; no shared claims-based multi-tenancy is enabled for MVP. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
 
 ## 1. Decision objective
 
-Select a minimal, auditable identity and access-control baseline for NAEOS Intelligence early access while preserving partner interoperability and avoiding premature multi-tenant or identity-provider complexity.
+Select a minimal, auditable identity and access-control baseline for NAEOS Intelligence early access. The accepted deployment baseline isolates each partner in a distinct deployment and data boundary; shared claims-based multi-tenancy is deferred.
 
 ## 2. Constraints and decision principles
 
@@ -72,7 +72,11 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Do not enable shared multi-tenancy by default for MVP. Prefer single-tenant deployment or an explicitly isolated tenant boundary based on the early-access deployment model. If shared tenancy is selected, require a trusted server-side client-to-tenant binding, persistence-level tenant scoping, and cross-tenant integration tests before acceptance. Never accept tenant identity solely from request body or caller-controlled headers.
 
-**Maintainer decision:** Open.
+**Maintainer decision:** Accepted — one isolated deployment per partner for early access. No shared claims-based multi-tenancy in MVP. This selects the operating model only; it does not authorize provisioning or production data/configuration changes.
+
+### IAM-07 — Partner binding to deployment
+
+**Maintainer decision:** Accepted — bind the partner identity server-side to its isolated deployment. Do not derive partner/tenant identity from request bodies, caller-controlled headers, or an unverified token claim. A deployment binding is not a decision about resource ownership (IAM-09) or OAuth client semantics (IAM-05).
 
 ### IAM-08 / IAM-09 — Authorization vocabulary and resource ownership
 
@@ -116,7 +120,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 ## 4. Suggested acceptance sequence
 
-1. Maintainer confirms early-access deployment model (isolated/single-tenant versus shared multi-tenant) and partner identity requirements.
+1. Early-access deployment model accepted: isolated deployment and data boundary per partner; partner binding is server-side and deployment-scoped.
 2. Accept IAM-01 through IAM-03 (protocol, issuer, trust boundaries).
 3. Accept IAM-04 through IAM-09 (actor/client/tenant and authorization semantics).
 4. Accept IAM-10 through IAM-14 (validation, lifecycle, propagation, denial, audit).
@@ -128,7 +132,6 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 Maintainer input is required for these questions; this document intentionally does not answer them on the maintainer's behalf:
 
-- Will early access be isolated deployment per partner or a shared service?
 - Which IdP/issuer must the first partner integration use, if already known?
 - Are callers exclusively machine-to-machine, or will human users act through clients?
 - Is rapid token revocation required beyond short-lived tokens and key rotation?
@@ -141,6 +144,7 @@ Maintainer input is required for these questions; this document intentionally do
 | IAM-01–02 | Accepted — Supabase Auth RS256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-11 |
 | IAM-03 | Pending — pin issuer/audience per environment after real-token verification | Pending | Pending |
 | IAM-04–05 | Pending | Pending | Pending |
-| IAM-06–07 | Pending | Pending | Pending |
+| IAM-06 | Accepted — isolated deployment per partner; no shared claims-based multi-tenancy in MVP | Maintainer confirmation | 2026-11-16 |
+| IAM-07 | Accepted — server-side deployment-to-partner binding; no caller-controlled tenant claim/header | Maintainer confirmation | 2026-11-16 |
 | IAM-08–09 | Pending | Pending | Pending |
 | IAM-10–14 | Pending | Pending | Pending |
