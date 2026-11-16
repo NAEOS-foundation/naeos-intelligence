@@ -12,6 +12,7 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/planner"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/verification"
 )
 
 // fakeClassifier returns a fixed intent.
@@ -290,11 +291,13 @@ type fakeEvidenceRecorder struct {
 	failEvent string
 	err       error
 	events    []string
+	records   []evidence.Event
 }
 
 func (f *fakeEvidenceRecorder) RecordEvents(_ context.Context, _, _ string, events []evidence.Event) error {
 	for _, event := range events {
 		f.events = append(f.events, event.EventType)
+		f.records = append(f.records, event)
 		if event.EventType == f.failEvent {
 			if f.err != nil {
 				return f.err
@@ -370,6 +373,34 @@ func TestOrchestrator_Run_RecordsCompletionLast(t *testing.T) {
 	if len(auditEvents) != 1 || auditEvents[0].EventType != "orchestration.completed" {
 		t.Fatalf("audit events = %+v, want one completion marker after successful batch", auditEvents)
 	}
+}
+
+func TestOrchestrator_Run_PersistsVerificationCorrelationID(t *testing.T) {
+	recorder := &fakeEvidenceRecorder{}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+		recorder,
+		verification.New(),
+	)
+	if _, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	for _, event := range recorder.records {
+		if event.EventType == "orchestration.verified" {
+			if !evidenceIDLooksLikeUUID(event.CorrelationID) {
+				t.Fatalf("verification correlation ID = %q, want UUID", event.CorrelationID)
+			}
+			return
+		}
+	}
+	t.Fatal("orchestration.verified evidence event was not persisted")
+}
+
+func evidenceIDLooksLikeUUID(value string) bool {
+	return len(value) == 36 && value[8] == '-' && value[13] == '-' && value[18] == '-' && value[23] == '-'
 }
 
 func TestOrchestrator_Run_FailsClosedWithoutEvidenceRecorder(t *testing.T) {
