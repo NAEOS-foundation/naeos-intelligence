@@ -116,3 +116,8 @@ No privilege changes were applied in this audit.
 - Supabase database linter — RLS enabled without policy: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
 - Supabase database linter — SECURITY DEFINER callable by anon: https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
 - Supabase database linter — SECURITY DEFINER callable by authenticated: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+
+
+## 2026-11-16 — Signing algorithm decision update
+
+The earlier gate above records the state observed during the 2026-11-11 review and is retained as historical evidence. The maintainer subsequently confirmed that ES256 is active in `naeos-crm-production` and approved revising IAM-01 to ES256-only. The verifier implementation is being updated to accept only ES256 with P-256 keys. The supplied JWKS public key is structurally consistent with an ES256 P-256 key, but a newly issued access token's safe header fields (`alg`, `kid`) and claims (`iss`, `aud`, `exp`, optional `nbf`) have not yet been independently verified. Production environment activation remains blocked until those fields and the live key match are confirmed, and IAM-03 through IAM-14 are resolved as applicable. Do not share a raw JWT or any secret material.
