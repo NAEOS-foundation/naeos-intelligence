@@ -52,11 +52,17 @@ func (f *fakePlanner) Plan(ctx context.Context, requestID string, intent classif
 	return planner.Plan{RequestID: requestID, Intent: intent, Tasks: []planner.Task{{ID: "t1", Title: "task", Status: "proposed"}}}, nil
 }
 
+func newTestOrchestrator(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor) *Orchestrator {
+	o := NewOrchestrator(cl, cb, pl, rp)
+	o.EvidenceStore = &fakeEvidenceRecorder{}
+	return o
+}
+
 func TestOrchestrator_Run(t *testing.T) {
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
-	o := NewOrchestrator(cl, cb, pl, nil)
+	o := newTestOrchestrator(cl, cb, pl, nil)
 
 	res, err := o.Run(context.Background(), "client-a", "req-1", "analyze repository architecture", "analysis_only",
 		[]intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}},
@@ -88,7 +94,7 @@ func TestOrchestrator_Run_ValidationErrors(t *testing.T) {
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
-	o := NewOrchestrator(cl, cb, pl, nil)
+	o := newTestOrchestrator(cl, cb, pl, nil)
 
 	tests := []struct {
 		name      string
@@ -117,19 +123,19 @@ func TestOrchestrator_Run_ValidationErrors(t *testing.T) {
 }
 
 func TestOrchestrator_Run_ComponentErrors(t *testing.T) {
-	o := NewOrchestrator(&fakeClassifier{err: errors.New("classify failed")}, &fakeContextBuilder{}, &fakePlanner{}, nil)
+	o := newTestOrchestrator(&fakeClassifier{err: errors.New("classify failed")}, &fakeContextBuilder{}, &fakePlanner{}, nil)
 	_, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "classify: classify failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	o = NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{err: errors.New("build failed")}, &fakePlanner{}, nil)
+	o = newTestOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{err: errors.New("build failed")}, &fakePlanner{}, nil)
 	_, err = o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "build context: build failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	o = NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{err: errors.New("plan failed")}, nil)
+	o = newTestOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{err: errors.New("plan failed")}, nil)
 	_, err = o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "plan: plan failed" {
 		t.Errorf("unexpected error: %v", err)
@@ -137,7 +143,7 @@ func TestOrchestrator_Run_ComponentErrors(t *testing.T) {
 }
 
 func TestOrchestrator_Run_ContextCancelled(t *testing.T) {
-	o := NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{}, nil)
+	o := newTestOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{}, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := o.Run(ctx, "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
@@ -153,7 +159,7 @@ func TestOrchestrator_Run_WithProcessor(t *testing.T) {
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
-	o := NewOrchestrator(cl, cb, pl, proc)
+	o := newTestOrchestrator(cl, cb, pl, proc)
 	o.Approval = governance.NewApprovalWorkflow()
 	o.Audit = governance.NewAuditLogger()
 
@@ -179,7 +185,7 @@ func TestOrchestrator_Run_AllIntentsProposed(t *testing.T) {
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()
-	o := NewOrchestrator(cl, cb, pl, proc)
+	o := newTestOrchestrator(cl, cb, pl, proc)
 
 	intents := []classifier.Intent{
 		classifier.IntentRepositoryAnalysis,
@@ -238,7 +244,7 @@ func TestOrchestrator_Run_Deterministic(t *testing.T) {
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()
-	o := NewOrchestrator(cl, cb, pl, proc)
+	o := newTestOrchestrator(cl, cb, pl, proc)
 
 	purpose := "analyze repository architecture and technical debt"
 	inputs := []intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}}
@@ -363,5 +369,21 @@ func TestOrchestrator_Run_RecordsCompletionLast(t *testing.T) {
 	auditEvents := o.Audit.Events()
 	if len(auditEvents) != 1 || auditEvents[0].EventType != "orchestration.completed" {
 		t.Fatalf("audit events = %+v, want one completion marker after successful batch", auditEvents)
+	}
+}
+
+func TestOrchestrator_Run_FailsClosedWithoutEvidenceRecorder(t *testing.T) {
+	o := NewOrchestrator(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+	)
+	result, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	if err == nil || err.Error() != "durable evidence recorder is required" {
+		t.Fatalf("Run() error = %v, want missing durable evidence recorder", err)
+	}
+	if result.RequestID != "" {
+		t.Fatalf("Run() result = %+v, want empty result", result)
 	}
 }

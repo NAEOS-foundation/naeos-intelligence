@@ -131,10 +131,16 @@ func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, ex
 		}
 	}
 
-	// 5. Build the complete evidence batch. The store commits all events
+	// 5. Durable evidence is a required completion boundary. Never return a
+	// successful result when the recorder is missing or misconfigured.
+	if o.EvidenceStore == nil {
+		return PipelineResult{}, errors.New("durable evidence recorder is required")
+	}
+
+	// Build the complete evidence batch. The store commits all events
 	// atomically so a failed write cannot leave a partial batch to duplicate
 	// on a later retry.
-	if o.EvidenceStore != nil {
+	{
 		events := []evidence.Event{
 			{
 				EventType: "orchestration.classified",

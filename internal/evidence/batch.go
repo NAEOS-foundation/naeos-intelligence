@@ -6,14 +6,18 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // RecordEvents appends a complete orchestration evidence batch atomically.
 // Stable event IDs make a replay of the same request/event types idempotent;
 // the transaction prevents partial batches when any insert fails.
 func (s *Store) RecordEvents(ctx context.Context, clientID, requestID string, events []Event) error {
+	if s == nil || s.pool == nil {
+		return errors.New("evidence store is not configured")
+	}
 	if strings.TrimSpace(clientID) == "" || len(clientID) > 255 {
 		return errors.New("client ID must contain 1 to 255 characters")
 	}
