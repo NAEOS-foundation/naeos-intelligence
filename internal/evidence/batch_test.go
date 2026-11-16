@@ -19,4 +19,7 @@ func TestDeterministicEventID_IsStableAndScoped(t *testing.T) {
 	if !validUUID(base) {
 		t.Fatalf("deterministic event ID is not a valid UUID: %q", base)
 	}
+	if base[14] != '8' {
+		t.Fatalf("deterministic event ID version = %q, want UUIDv8", base[14])
+	}
 }
