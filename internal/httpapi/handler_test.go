@@ -158,7 +158,7 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	}
 
 	// Record an approval decision
-	body := `{"decision":"approved","approved_by":"alice","reason":"risk assessed"}`
+	body := `{"decision":"approved","reason":"risk assessed"}`
 	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
