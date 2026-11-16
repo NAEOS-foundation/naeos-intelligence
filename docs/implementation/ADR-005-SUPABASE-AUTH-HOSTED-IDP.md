@@ -49,12 +49,13 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 ## Security gates
 
 1. Keep production authentication fail-closed. Do not disable middleware or remove scope checks to make integration tests pass.
-2. Do not assume the project's active signing algorithm from its creation date. Confirm the active signing key is RSA/RS256 in Supabase Dashboard and confirm the JWKS contains a matching RSA public key.
+2. Do not assume the project's active signing algorithm from its creation date. Confirm the active signing key is EC P-256/ES256 in Supabase Dashboard and confirm the JWKS contains a matching EC public key.
 3. Verify a real access JWT from the selected project: `alg=ES256`, non-empty `kid`, exact `iss`, expected `aud`, `sub`, `exp`, and `nbf` where present.
 4. Do not deploy until scope claims or trusted authorization mapping are decided and tested. Supabase's default session JWT does not automatically grant NAEOS-specific API scopes.
 5. Do not use `user_metadata` for roles, scopes, tenant IDs, or any authorization decision.
 6. Keep Supabase secret keys out of browser code, logs, source control, and this repository.
-7. Require CI evidence for invalid signature, unsupported algorithm, unknown key, wrong issuer/audience, expiry, future not-before, missing identity, insufficient scope, JWKS outage, key rotation, and resource ownership.
+7. Require CI evidence for invalid signature, unsupported algorithm, malformed/duplicate EC keys, unknown key, wrong issuer/audience, expiry, future not-before, missing identity, insufficient scope, JWKS outage, key rotation, and resource ownership.
+8. Account for Supabase JWKS edge caching (documented at 10 minutes) and the NAEOS verifier cache (5 minutes); emergency revocation must include a defined cache-invalidation/propagation procedure.
 8. No production database schema changes are authorized by this ADR.
 
 ## Deployment contract (selected project; activation still gated)
