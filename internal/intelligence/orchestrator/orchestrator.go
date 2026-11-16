@@ -166,6 +166,7 @@ func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, ex
 				ActorType:     "system",
 				ActorID:       "verification",
 				Message:       fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome),
+				CorrelationID: vr.VerificationID,
 			})
 		}
 
