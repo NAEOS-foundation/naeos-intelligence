@@ -4,7 +4,7 @@ package verification
 
 import (
 	"context"
-	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -41,15 +41,14 @@ type Engine struct{}
 // New creates a verification engine.
 func New() *Engine { return &Engine{} }
 
-func newUUID() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	h := hex.EncodeToString(b[:])
-	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:], nil
+func newUUID(executionID, expectedOutcome, observedOutcome string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(executionID) + "\x00" +
+		strings.TrimSpace(expectedOutcome) + "\x00" + strings.TrimSpace(observedOutcome)))
+	id := sum[:16]
+	id[6] = (id[6] & 0x0f) | 0x80
+	id[8] = (id[8] & 0x3f) | 0x80
+	h := hex.EncodeToString(id)
+	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
 }
 
 // Verify compares the observed outcome with the expected outcome and produces
@@ -63,10 +62,7 @@ func (e *Engine) Verify(ctx context.Context, executionID, expectedOutcome, obser
 		return VerificationRecord{}, errors.New("execution ID is required")
 	}
 
-	id, err := newUUID()
-	if err != nil {
-		return VerificationRecord{}, fmt.Errorf("generate verification ID: %w", err)
-	}
+	id := newUUID(executionID, expectedOutcome, observedOutcome)
 
 	now := time.Now().UTC()
 	var result Result
