@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
@@ -100,8 +101,8 @@ func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 
 func ecJWK(key *ecdsa.PrivateKey,kid string) map[string]any {
 	return map[string]any{"kty":"EC","use":"sig","alg":"ES256","kid":kid,"crv":"P-256",
-		"x":base64.RawURLEncoding.EncodeToString(key.X.BytesFixed(32)),
-		"y":base64.RawURLEncoding.EncodeToString(key.Y.BytesFixed(32)),
+		"x":base64.RawURLEncoding.EncodeToString(coordinateBytes(key.X)),
+		"y":base64.RawURLEncoding.EncodeToString(coordinateBytes(key.Y)),
 		"key_ops":[]string{"verify"}}
 }
 
@@ -126,4 +127,10 @@ func unsignedOrSignedHeaderToken(t *testing.T,key *ecdsa.PrivateKey,kid,alg stri
 	if alg!="ES256" { return input+"."+base64.RawURLEncoding.EncodeToString(make([]byte,64)) }
 	digest:=sha256.Sum256([]byte(input)); r,s,_:=ecdsa.Sign(rand.Reader,key,digest[:]); sig:=make([]byte,64); r.FillBytes(sig[:32]); s.FillBytes(sig[32:])
 	return input+"."+base64.RawURLEncoding.EncodeToString(sig)
+}
+
+func coordinateBytes(value *big.Int) []byte {
+	out := make([]byte, 32)
+	value.FillBytes(out)
+	return out
 }
