@@ -19,7 +19,7 @@ type Task struct {
 	ID               string   `json:"id"`
 	Title            string   `json:"title"`
 	Description      string   `json:"description"`
-	DependsOn        []string `json:"depends_on,omitempty"`
+	DependsOn        []string `json:"depends_on"`
 	Priority         int      `json:"priority"` // 1=highest
 	EstimatedMinutes int      `json:"estimated_minutes"`
 	Status           string   `json:"status"`
@@ -82,6 +82,13 @@ func (p *RulePlanner) Plan(ctx context.Context, requestID string, intent classif
 		}
 		return tasks[i].ID < tasks[j].ID
 	})
+
+	// Keep depends_on present as a JSON array for the public OpenAPI contract.
+	for i := range tasks {
+		if tasks[i].DependsOn == nil {
+			tasks[i].DependsOn = []string{}
+		}
+	}
 
 	return Plan{
 		RequestID:  requestID,
