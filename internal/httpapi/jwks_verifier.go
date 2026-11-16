@@ -61,8 +61,7 @@ type jwtClaims struct {
 	Audience  json.RawMessage `json:"aud"`
 	Expires   int64           `json:"exp"`
 	NotBefore int64           `json:"nbf"`
-	Scope     string          `json:"scope"`
-	Scopes    []string        `json:"scopes"`
+	NAEOSScopes []string        `json:"naeos_scopes"`
 }
 
 func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
@@ -144,11 +143,12 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		return Principal{}, errors.New("JWT has no subject identity")
 	}
 	scopes := make(map[string]bool)
-	for _, scope := range strings.Fields(claims.Scope) {
-		scopes[scope] = true
-	}
-	for _, scope := range claims.Scopes {
-		if strings.TrimSpace(scope) != "" {
+	// IAM-08: accept only the dedicated capability claim produced by the
+	// configured server-controlled Supabase Auth hook. Generic scope/scopes
+	// claims and user_metadata are not authorization sources.
+	for _, scope := range claims.NAEOSScopes {
+		switch strings.TrimSpace(scope) {
+		case "intelligence:read", "intelligence:write":
 			scopes[strings.TrimSpace(scope)] = true
 		}
 	}
