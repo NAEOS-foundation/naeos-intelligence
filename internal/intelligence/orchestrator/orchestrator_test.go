@@ -3,14 +3,17 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/planner"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/verification"
 )
 
 // fakeClassifier returns a fixed intent.
@@ -48,14 +51,24 @@ func (f *fakePlanner) Plan(ctx context.Context, requestID string, intent classif
 	if f.err != nil {
 		return planner.Plan{}, f.err
 	}
+	if len(f.plan.Tasks) > 0 {
+		f.plan.RequestID = requestID
+		return f.plan, nil
+	}
 	return planner.Plan{RequestID: requestID, Intent: intent, Tasks: []planner.Task{{ID: "t1", Title: "task", Status: "proposed"}}}, nil
+}
+
+func newTestOrchestrator(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor) *Orchestrator {
+	o := NewOrchestrator(cl, cb, pl, rp)
+	o.EvidenceStore = &fakeEvidenceRecorder{}
+	return o
 }
 
 func TestOrchestrator_Run(t *testing.T) {
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
-	o := NewOrchestrator(cl, cb, pl, nil)
+	o := newTestOrchestrator(cl, cb, pl, nil)
 
 	res, err := o.Run(context.Background(), "client-a", "req-1", "analyze repository architecture", "analysis_only",
 		[]intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}},
@@ -87,7 +100,7 @@ func TestOrchestrator_Run_ValidationErrors(t *testing.T) {
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
-	o := NewOrchestrator(cl, cb, pl, nil)
+	o := newTestOrchestrator(cl, cb, pl, nil)
 
 	tests := []struct {
 		name      string
@@ -116,19 +129,19 @@ func TestOrchestrator_Run_ValidationErrors(t *testing.T) {
 }
 
 func TestOrchestrator_Run_ComponentErrors(t *testing.T) {
-	o := NewOrchestrator(&fakeClassifier{err: errors.New("classify failed")}, &fakeContextBuilder{}, &fakePlanner{}, nil)
+	o := newTestOrchestrator(&fakeClassifier{err: errors.New("classify failed")}, &fakeContextBuilder{}, &fakePlanner{}, nil)
 	_, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "classify: classify failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	o = NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{err: errors.New("build failed")}, &fakePlanner{}, nil)
+	o = newTestOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{err: errors.New("build failed")}, &fakePlanner{}, nil)
 	_, err = o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "build context: build failed" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	o = NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{err: errors.New("plan failed")}, nil)
+	o = newTestOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{err: errors.New("plan failed")}, nil)
 	_, err = o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil || err.Error() != "plan: plan failed" {
 		t.Errorf("unexpected error: %v", err)
@@ -136,7 +149,7 @@ func TestOrchestrator_Run_ComponentErrors(t *testing.T) {
 }
 
 func TestOrchestrator_Run_ContextCancelled(t *testing.T) {
-	o := NewOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{}, nil)
+	o := newTestOrchestrator(&fakeClassifier{intent: classifier.IntentRepositoryAnalysis}, &fakeContextBuilder{}, &fakePlanner{}, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := o.Run(ctx, "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
@@ -152,7 +165,7 @@ func TestOrchestrator_Run_WithProcessor(t *testing.T) {
 	cl := &fakeClassifier{intent: classifier.IntentRepositoryAnalysis}
 	cb := &fakeContextBuilder{}
 	pl := &fakePlanner{}
-	o := NewOrchestrator(cl, cb, pl, proc)
+	o := newTestOrchestrator(cl, cb, pl, proc)
 	o.Approval = governance.NewApprovalWorkflow()
 	o.Audit = governance.NewAuditLogger()
 
@@ -178,7 +191,7 @@ func TestOrchestrator_Run_AllIntentsProposed(t *testing.T) {
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()
-	o := NewOrchestrator(cl, cb, pl, proc)
+	o := newTestOrchestrator(cl, cb, pl, proc)
 
 	intents := []classifier.Intent{
 		classifier.IntentRepositoryAnalysis,
@@ -237,7 +250,7 @@ func TestOrchestrator_Run_Deterministic(t *testing.T) {
 	cl := classifier.NewRuleClassifier()
 	cb := intctx.NewRuleBuilder()
 	pl := planner.NewRulePlanner()
-	o := NewOrchestrator(cl, cb, pl, proc)
+	o := newTestOrchestrator(cl, cb, pl, proc)
 
 	purpose := "analyze repository architecture and technical debt"
 	inputs := []intctx.SourceInput{{Type: "repository", Reference: "github.com/o/r"}}
@@ -276,5 +289,183 @@ func TestNewOrchestrator_NilFields(t *testing.T) {
 	o := NewOrchestrator(nil, nil, nil, nil)
 	if o.Classifier != nil || o.Context != nil || o.Planner != nil || o.Processor != nil {
 		t.Error("fields should be assigned as-is even when nil")
+	}
+}
+
+type fakeEvidenceRecorder struct {
+	failEvent string
+	err       error
+	events    []string
+	records   []evidence.Event
+}
+
+func (f *fakeEvidenceRecorder) RecordEvents(_ context.Context, _, _ string, events []evidence.Event) error {
+	for _, event := range events {
+		f.events = append(f.events, event.EventType)
+		f.records = append(f.records, event)
+		if event.EventType == f.failEvent {
+			if f.err != nil {
+				return f.err
+			}
+			return errors.New("evidence write failed")
+		}
+	}
+	return nil
+}
+
+func TestOrchestrator_Run_FailsWhenEvidencePersistenceFails(t *testing.T) {
+	writeErr := errors.New("database unavailable")
+	evidence := &fakeEvidenceRecorder{failEvent: "orchestration.planned", err: writeErr}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+		evidence,
+		nil,
+	)
+	o.Audit = governance.NewAuditLogger()
+
+	res, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	if err == nil {
+		t.Fatal("expected evidence persistence error")
+	}
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("error = %v, want wrapped database error", err)
+	}
+	if res.RequestID != "" {
+		t.Fatalf("result = %+v, want empty result on persistence failure", res)
+	}
+	if got := len(o.Audit.Events()); got != 0 {
+		t.Fatalf("audit events = %d, want no completion marker after failed evidence batch", got)
+	}
+	want := []string{"orchestration.classified", "orchestration.planned"}
+	if len(evidence.events) != len(want) {
+		t.Fatalf("events = %v, want %v", evidence.events, want)
+	}
+	for i := range want {
+		if evidence.events[i] != want[i] {
+			t.Fatalf("events = %v, want %v", evidence.events, want)
+		}
+	}
+}
+
+func TestOrchestrator_Run_RecordsCompletionLast(t *testing.T) {
+	evidence := &fakeEvidenceRecorder{}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+		evidence,
+		nil,
+	)
+	o.Audit = governance.NewAuditLogger()
+
+	if _, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	want := []string{"orchestration.classified", "orchestration.planned", "orchestration.completed"}
+	if len(evidence.events) != len(want) {
+		t.Fatalf("events = %v, want %v", evidence.events, want)
+	}
+	for i := range want {
+		if evidence.events[i] != want[i] {
+			t.Fatalf("events = %v, want %v", evidence.events, want)
+		}
+	}
+	auditEvents := o.Audit.Events()
+	if len(auditEvents) != 1 || auditEvents[0].EventType != "orchestration.completed" {
+		t.Fatalf("audit events = %+v, want one completion marker after successful batch", auditEvents)
+	}
+}
+
+func TestOrchestrator_Run_PersistsVerificationCorrelationID(t *testing.T) {
+	recorder := &fakeEvidenceRecorder{}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+		recorder,
+		verification.New(),
+	)
+	if _, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	for _, event := range recorder.records {
+		if event.EventType == "orchestration.verified" {
+			if !evidenceIDLooksLikeUUID(event.CorrelationID) {
+				t.Fatalf("verification correlation ID = %q, want UUID", event.CorrelationID)
+			}
+			return
+		}
+	}
+	t.Fatal("orchestration.verified evidence event was not persisted")
+}
+
+func evidenceIDLooksLikeUUID(value string) bool {
+	return len(value) == 36 && value[8] == '-' && value[13] == '-' && value[18] == '-' && value[23] == '-'
+}
+
+func TestOrchestrator_Run_FailsClosedWhenVerificationFails(t *testing.T) {
+	recorder := &fakeEvidenceRecorder{}
+	failedPlan := planner.Plan{
+		Intent: classifier.IntentUnknown,
+		Tasks:  []planner.Task{{ID: "t1", Title: "task", Status: "proposed"}},
+	}
+	o := NewOrchestratorWithEvidence(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{plan: failedPlan},
+		nil,
+		recorder,
+		verification.New(),
+	)
+	o.Audit = governance.NewAuditLogger()
+
+	result, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	if err == nil {
+		t.Fatal("Run() succeeded despite failed verification")
+	}
+	if result.RequestID != "" {
+		t.Fatalf("Run() result = %+v, want empty result", result)
+	}
+	var sawFailedVerification, sawCompletion bool
+	for _, event := range recorder.records {
+		if event.EventType == "orchestration.verified" && strings.Contains(event.Message, "result=failed") {
+			sawFailedVerification = true
+			if event.CorrelationID == "" {
+				t.Error("failed verification evidence has no correlation ID")
+			}
+		}
+		if event.EventType == "orchestration.completed" {
+			sawCompletion = true
+		}
+	}
+	if !sawFailedVerification {
+		t.Fatal("failed verification was not durably recorded")
+	}
+	if sawCompletion {
+		t.Fatal("failed verification was incorrectly recorded as completed")
+	}
+	if len(o.Audit.Events()) != 0 {
+		t.Fatal("in-memory completion marker was recorded after failed verification")
+	}
+}
+
+func TestOrchestrator_Run_FailsClosedWithoutEvidenceRecorder(t *testing.T) {
+	o := NewOrchestrator(
+		&fakeClassifier{intent: classifier.IntentRepositoryAnalysis},
+		&fakeContextBuilder{},
+		&fakePlanner{},
+		nil,
+	)
+	result, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
+	if err == nil || err.Error() != "durable evidence recorder is required" {
+		t.Fatalf("Run() error = %v, want missing durable evidence recorder", err)
+	}
+	if result.RequestID != "" {
+		t.Fatalf("Run() result = %+v, want empty result", result)
 	}
 }
