@@ -1,6 +1,6 @@
 # ADR-005: Supabase Auth as the hosted NAEOS Identity Provider
 
-**Status:** Accepted for IAM-01 and IAM-02; `naeos-crm-production` selected as IdP; remaining IAM decisions are open  
+**Status:** Accepted for IAM-01, IAM-02, and IAM-08 policy; `naeos-crm-production` selected as IdP; IAM-03/04/05/06/07/09/10/11/12/13/14 remain open or gated  
 **Date:** 2026-11-11  
 **Decision owner:** NAEOS maintainer  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `PHASE-05-IAM-MVP-DECISION-BRIEF.md`
@@ -38,7 +38,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 - IAM-04: canonical principal key, including issuer namespace and subject.
 - IAM-05: distinction between human principal and OAuth/service client. Supabase Auth session JWTs are not a client-credentials grant.
 - IAM-06/07: single-tenant pilot or tenant model and trusted tenant binding.
-- IAM-08: authorization vocabulary and trusted scope/role mapping. Supabase user-editable `user_metadata` must never drive authorization; use server-controlled `app_metadata` or a trusted server-side mapping.
+- IAM-08: Accepted capability policy and code path: Supabase Custom Access Token Hook emits dedicated `naeos_scopes` from administrator-managed `app_metadata.naeos_scopes`; NAEOS verifier allowlists `intelligence:read` and `intelligence:write`, ignores generic `scope`/`scopes` and `user_metadata`. SQL reference: `docs/implementation/supabase/NAEOS-CUSTOM-ACCESS-TOKEN-HOOK.sql`. Actual hook enablement and a real issued-token evidence remain gated; do not activate production yet.
 - IAM-09: persisted resource ownership semantics.
 - IAM-10: complete claim validation, including required claims and `iat`/clock-skew policy.
 - IAM-11: token expiry, session revocation, JWKS cache and key-rotation/revocation response.
@@ -51,7 +51,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 1. Keep production authentication fail-closed. Do not disable middleware or remove scope checks to make integration tests pass.
 2. Do not assume the project's active signing algorithm from its creation date. Confirm the active signing key is EC P-256/ES256 in Supabase Dashboard and confirm the JWKS contains a matching EC public key.
 3. Verify a real access JWT from the selected project: `alg=ES256`, non-empty `kid`, exact `iss`, expected `aud`, `sub`, `exp`, and `nbf` where present.
-4. Do not deploy until scope claims or trusted authorization mapping are decided and tested. Supabase's default session JWT does not automatically grant NAEOS-specific API scopes.
+4. Do not deploy until the Custom Access Token Hook is explicitly configured, a real newly issued access JWT demonstrates the dedicated `naeos_scopes` claim, and the end-to-end scope permission matrix is verified. Supabase's default session JWT does not automatically grant NAEOS-specific API scopes.
 5. Do not use `user_metadata` for roles, scopes, tenant IDs, or any authorization decision.
 6. Keep Supabase secret keys out of browser code, logs, source control, and this repository.
 7. Require CI evidence for invalid signature, unsupported algorithm, malformed/duplicate EC keys, unknown key, wrong issuer/audience, expiry, future not-before, missing identity, insufficient scope, JWKS outage, key rotation, and resource ownership.
