@@ -7,15 +7,15 @@
 
 ## Context
 
-NAEOS Intelligence already has a provider-neutral `TokenVerifier` boundary and an RS256-only JWKS verifier. The repository does not establish a complete first-party token issuer. The maintainer selected a hosted identity provider and explicitly chose Supabase.
+NAEOS Intelligence already has a provider-neutral `TokenVerifier` boundary and an ES256-only JWKS verifier. The repository does not establish a complete first-party token issuer. The maintainer selected a hosted identity provider and explicitly chose Supabase.
 
-Supabase Auth issues session access JWTs and exposes asymmetric public signing keys through its project JWKS discovery endpoint. Supabase signing keys support RS256 and key rotation. Supabase's documentation currently recommends considering ES256 for efficiency, but this ADR records RS256 as the NAEOS compatibility requirement and verifier allowlist for this integration.
+Supabase Auth issues session access JWTs and exposes asymmetric public signing keys through its project JWKS discovery endpoint. Supabase supports asymmetric ES256 (P-256) signing keys and publishes their public JWKs for local verification. The maintainer confirmed ES256 is active in the selected Supabase Auth project and approved ES256-only verification for NAEOS.
 
 ## Decisions
 
 ### IAM-01 — Protocol and token format
 
-Accepted: use Supabase Auth session access JWTs as bearer credentials for human-user access to NAEOS APIs. Accept RS256 only at the NAEOS Intelligence verifier boundary. Do not accept HS256 or algorithm negotiation.
+Accepted: use Supabase Auth session access JWTs as bearer credentials for human-user access to NAEOS APIs. Accept ES256 only (ECDSA P-256 with SHA-256) at the NAEOS Intelligence verifier boundary. Do not accept RS256, HS256, `none`, or algorithm negotiation.
 
 This decision does not authorize using Supabase API keys as user access tokens. Publishable keys identify the client application; they are not substitutes for a user's access JWT. Secret keys remain server-only and must never be used as user bearer tokens.
 
@@ -27,7 +27,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 
 ## Current implementation evidence
 
-- `internal/httpapi/jwks_verifier.go` validates RS256 signatures against a remote JWKS and checks issuer, audience, expiry, not-before, and key ID.
+- `internal/httpapi/jwks_verifier.go` validates ES256 signatures against P-256 public keys from a remote JWKS and checks issuer, audience, expiry, not-before, and key ID.
 - `cmd/naeos-intelligence/main.go` reads `NAEOS_AUTH_ISSUER`, `NAEOS_AUTH_AUDIENCE`, and `NAEOS_AUTH_JWKS_URL`.
 - `internal/httpapi/auth.go` fails closed when the verifier is not configured and enforces route scopes.
 - Protected routes require `intelligence:read` or `intelligence:write`.
@@ -50,7 +50,7 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 
 1. Keep production authentication fail-closed. Do not disable middleware or remove scope checks to make integration tests pass.
 2. Do not assume the project's active signing algorithm from its creation date. Confirm the active signing key is RSA/RS256 in Supabase Dashboard and confirm the JWKS contains a matching RSA public key.
-3. Verify a real access JWT from the selected project: `alg=RS256`, non-empty `kid`, exact `iss`, expected `aud`, `sub`, `exp`, and `nbf` where present.
+3. Verify a real access JWT from the selected project: `alg=ES256`, non-empty `kid`, exact `iss`, expected `aud`, `sub`, `exp`, and `nbf` where present.
 4. Do not deploy until scope claims or trusted authorization mapping are decided and tested. Supabase's default session JWT does not automatically grant NAEOS-specific API scopes.
 5. Do not use `user_metadata` for roles, scopes, tenant IDs, or any authorization decision.
 6. Keep Supabase secret keys out of browser code, logs, source control, and this repository.
@@ -67,7 +67,7 @@ NAEOS_AUTH_AUDIENCE=authenticated
 NAEOS_AUTH_JWKS_URL=https://oruykkehukoiipldzcvc.supabase.co/auth/v1/.well-known/jwks.json
 ```
 
-Confirm the actual `iss` and `aud` from a real access token and confirm the live JWKS contains the active RS256 public key before enabling any value. Keep all three unset in production until the signing-key, claim-mapping, and remaining IAM gates pass. The CRM project's own Data API authorization and cross-project Intelligence access are separate trust boundaries.
+Confirm the actual `iss` and `aud` from a newly issued real access token and confirm its `kid` resolves to the active ES256 P-256 public key in live JWKS before enabling any value. Keep all three unset in production until the signing-key, claim-mapping, and remaining IAM gates pass. The CRM project's own Data API authorization and cross-project Intelligence access are separate trust boundaries.
 
 ## Consequences
 
