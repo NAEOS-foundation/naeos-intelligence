@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
@@ -285,13 +286,15 @@ type fakeEvidenceRecorder struct {
 	events    []string
 }
 
-func (f *fakeEvidenceRecorder) RecordEvent(_ context.Context, _, _, eventType, _, _, _, _ string) error {
-	f.events = append(f.events, eventType)
-	if eventType == f.failEvent {
-		if f.err != nil {
-			return f.err
+func (f *fakeEvidenceRecorder) RecordEvents(_ context.Context, _, _ string, events []evidence.Event) error {
+	for _, event := range events {
+		f.events = append(f.events, event.EventType)
+		if event.EventType == f.failEvent {
+			if f.err != nil {
+				return f.err
+			}
+			return errors.New("evidence write failed")
 		}
-		return errors.New("evidence write failed")
 	}
 	return nil
 }
@@ -307,6 +310,7 @@ func TestOrchestrator_Run_FailsWhenEvidencePersistenceFails(t *testing.T) {
 		evidence,
 		nil,
 	)
+	o.Audit = governance.NewAuditLogger()
 
 	res, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil)
 	if err == nil {
@@ -317,6 +321,9 @@ func TestOrchestrator_Run_FailsWhenEvidencePersistenceFails(t *testing.T) {
 	}
 	if res.RequestID != "" {
 		t.Fatalf("result = %+v, want empty result on persistence failure", res)
+	}
+	if got := len(o.Audit.Events()); got != 0 {
+		t.Fatalf("audit events = %d, want no completion marker after failed evidence batch", got)
 	}
 	want := []string{"orchestration.classified", "orchestration.planned"}
 	if len(evidence.events) != len(want) {
