@@ -346,6 +346,7 @@ func TestOrchestrator_Run_RecordsCompletionLast(t *testing.T) {
 		evidence,
 		nil,
 	)
+	o.Audit = governance.NewAuditLogger()
 
 	if _, err := o.Run(context.Background(), "client-a", "req-1", "purpose", "analysis_only", nil, nil, model.Request{}, nil); err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -358,5 +359,9 @@ func TestOrchestrator_Run_RecordsCompletionLast(t *testing.T) {
 		if evidence.events[i] != want[i] {
 			t.Fatalf("events = %v, want %v", evidence.events, want)
 		}
+	}
+	auditEvents := o.Audit.Events()
+	if len(auditEvents) != 1 || auditEvents[0].EventType != "orchestration.completed" {
+		t.Fatalf("audit events = %+v, want one completion marker after successful batch", auditEvents)
 	}
 }
