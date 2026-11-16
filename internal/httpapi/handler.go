@@ -178,7 +178,8 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_REQUEST", err.Error())
 		return
 	}
-	// Bind the approver to the verified principal. Caller-supplied identity fields are not accepted as authority.\n\tdecision, err := h.store.RecordApprovalDecision(r.Context(), p.ClientID, r.PathValue("request_id"), input.Decision, p.ClientID, input.Reason)
+	// Bind the approver to the verified principal. Caller-supplied identity fields are not accepted as authority.
+	decision, err := h.store.RecordApprovalDecision(r.Context(), p.ClientID, r.PathValue("request_id"), input.Decision, p.ClientID, input.Reason)
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
 		return
