@@ -104,6 +104,9 @@ func TestRulePlanner_Plan(t *testing.T) {
 				t.Errorf("tasks count = %d, want >= %d", len(plan.Tasks), tt.wantMin)
 			}
 			for _, task := range plan.Tasks {
+				if task.DependsOn == nil {
+					t.Errorf("task %s depends_on must serialize as an array, not null/omitted", task.ID)
+				}
 				if task.Status != "proposed" {
 					t.Errorf("task %s status = %q, want proposed", task.ID, task.Status)
 				}
