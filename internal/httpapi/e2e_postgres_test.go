@@ -469,11 +469,33 @@ func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *t
 		t.Fatalf("owner GET status=%d, want 200: %s", rec.Code, rec.Body.String())
 	}
 
+	// Governed submissions are durably staged for approval, not execution.
+	governedBody := `{"purpose":"governed action owner isolation","execution_mode":"governed"}`
+	governedRequestA := submit(hA, governedBody, key+"-governed")
+	if governedRequestA.Status != httpapi.StatusRequiresApproval || !governedRequestA.ApprovalRequired {
+		t.Fatalf("governed request must await approval: %+v", governedRequestA)
+	}
+
 	// Approval endpoint ownership is checked against the same persisted owner key.
 	// Client B shares the OAuth client_id but must not approve A's governed request.
-	approvalBody := `{"decision":"approved","approved_by":"reviewer-a","reason":"authorized test decision"}`
-	if rec := do(hB, http.MethodPost, requestA.StatusURL+"/approval", approvalBody, ""); rec.Code != http.StatusNotFound {
+	approvalBody := `{"decision":"approved","approved_by":"forged-client-value","reason":"authorized test decision"}`
+	if rec := do(hB, http.MethodPost, governedRequestA.StatusURL+"/approval", approvalBody, ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("cross-owner APPROVAL status=%d, want 404: %s", rec.Code, rec.Body.String())
+	}
+	ownerApproval := do(hA, http.MethodPost, governedRequestA.StatusURL+"/approval", approvalBody, "")
+	if ownerApproval.Code != http.StatusOK {
+		t.Fatalf("owner approval status=%d, want 200: %s", ownerApproval.Code, ownerApproval.Body.String())
+	}
+	var approvalResult httpapi.ApprovalDecisionResponse
+	if err := json.Unmarshal(ownerApproval.Body.Bytes(), &approvalResult); err != nil {
+		t.Fatalf("decode approval response: %v", err)
+	}
+	if approvalResult.ApprovedBy != principalA.Subject || approvalResult.Decision != "approved" {
+		t.Fatalf("approval must be attributed to verified human subject: %+v", approvalResult)
+	}
+	afterApproval, err := store.Get(ctx, principalA.OwnerID(), governedRequestA.RequestID)
+	if err != nil || afterApproval.Status != httpapi.StatusQueued || afterApproval.ApprovalRequired {
+		t.Fatalf("approved request should be queued but remain non-executable: %+v err=%v", afterApproval, err)
 	}
 	if rec := do(hA, http.MethodGet, requestA.StatusURL, "", ""); rec.Code != http.StatusOK {
 		t.Fatalf("owner must retain access after rejected cross-owner lifecycle operations: status=%d body=%s", rec.Code, rec.Body.String())
