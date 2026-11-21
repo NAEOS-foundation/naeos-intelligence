@@ -469,14 +469,14 @@ func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *t
 		t.Fatalf("owner GET status=%d, want 200: %s", rec.Code, rec.Body.String())
 	}
 
-	// Approval uses a governed request; B must not be able to record a decision for A.
-	governedBody := `{"purpose":"shared client approval isolation","execution_mode":"governed","desired_outputs":["approval_record"]}`
-	governedA := submit(hA, governedBody, "shared-owner-approval-"+t.Name())
+	// Approval endpoint ownership is checked against the same persisted owner key.
+	// The public request contract currently permits analysis_only; do not invent a
+	// governed execution mode merely to exercise the ownership boundary.
 	approvalBody := `{"decision":"approved","approved_by":"reviewer-a","reason":"authorized test decision"}`
-	if rec := do(hB, http.MethodPost, governedA.StatusURL+"/approval", approvalBody, ""); rec.Code != http.StatusNotFound {
+	if rec := do(hB, http.MethodPost, requestA.StatusURL+"/approval", approvalBody, ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("cross-owner APPROVAL status=%d, want 404: %s", rec.Code, rec.Body.String())
 	}
-	if rec := do(hA, http.MethodGet, governedA.StatusURL, "", ""); rec.Code != http.StatusOK {
+	if rec := do(hA, http.MethodGet, requestA.StatusURL, "", ""); rec.Code != http.StatusOK {
 		t.Fatalf("owner must retain access after rejected cross-owner lifecycle operations: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
