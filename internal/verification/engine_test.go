@@ -78,17 +78,31 @@ func TestVerify_ContextCancelled(t *testing.T) {
 	}
 }
 
-func TestVerifyIDsAreUnique(t *testing.T) {
+func TestVerifyIDsAreStablePerExecutionAndOutcome(t *testing.T) {
 	e := New()
 	r1, err := e.Verify(context.Background(), "exec-1", "completed", "completed")
 	if err != nil {
 		t.Fatalf("Verify() error = %v", err)
 	}
+	replay, err := e.Verify(context.Background(), "exec-1", "completed", "completed")
+	if err != nil {
+		t.Fatalf("Verify() replay error = %v", err)
+	}
+	if r1.VerificationID != replay.VerificationID {
+		t.Errorf("replay verification ID = %q, want stable ID %q", replay.VerificationID, r1.VerificationID)
+	}
 	r2, err := e.Verify(context.Background(), "exec-2", "completed", "completed")
 	if err != nil {
-		t.Fatalf("Verify() error = %v", err)
+		t.Fatalf("Verify() second execution error = %v", err)
 	}
 	if r1.VerificationID == r2.VerificationID {
-		t.Error("verification IDs are not unique")
+		t.Error("different executions produced the same verification ID")
+	}
+	r3, err := e.Verify(context.Background(), "exec-1", "completed", "failed")
+	if err != nil {
+		t.Fatalf("Verify() different outcome error = %v", err)
+	}
+	if r1.VerificationID == r3.VerificationID {
+		t.Error("different outcomes for one execution produced the same verification ID")
 	}
 }

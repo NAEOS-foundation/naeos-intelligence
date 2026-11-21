@@ -103,7 +103,7 @@ func (s *Store) GetEvents(ctx context.Context, clientID, requestID string) ([]Ev
 
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, request_id::text, client_id, event_type, actor_type, actor_id, message,
-		       correlation_id, created_at
+		       COALESCE(correlation_id, ''), created_at
 		FROM governance_audit_events
 		WHERE client_id=$1 AND request_id=$2::uuid
 		ORDER BY created_at ASC, id ASC`,

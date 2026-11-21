@@ -29,6 +29,11 @@ type PipelineResult struct {
 	CreatedAt      time.Time         `json:"created_at"`
 }
 
+// EvidenceRecorder is the durable evidence boundary required by the orchestrator.
+type EvidenceRecorder interface {
+	RecordEvents(ctx context.Context, clientID, requestID string, events []evidence.Event) error
+}
+
 // Orchestrator coordinates classifier, context builder, planner, and runtime.
 type Orchestrator struct {
 	Classifier         classifier.Classifier
@@ -37,7 +42,7 @@ type Orchestrator struct {
 	Processor          *runtime.Processor
 	Approval           *governance.ApprovalWorkflow
 	Audit              *governance.AuditLogger
-	EvidenceStore      *evidence.Store
+	EvidenceStore      EvidenceRecorder
 	VerificationEngine *verification.Engine
 }
 
@@ -52,7 +57,7 @@ func NewOrchestrator(cl classifier.Classifier, cb intctx.Builder, pl planner.Pla
 }
 
 // NewOrchestratorWithEvidence creates an orchestrator with evidence and verification wired in.
-func NewOrchestratorWithEvidence(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor, es *evidence.Store, ve *verification.Engine) *Orchestrator {
+func NewOrchestratorWithEvidence(cl classifier.Classifier, cb intctx.Builder, pl planner.Planner, rp *runtime.Processor, es EvidenceRecorder, ve *verification.Engine) *Orchestrator {
 	return &Orchestrator{
 		Classifier:         cl,
 		Context:            cb,
@@ -126,24 +131,77 @@ func (o *Orchestrator) Run(ctx context.Context, clientID, requestID, purpose, ex
 		}
 	}
 
-	// 5. Record audit
+	// 5. Durable evidence is a required completion boundary. Never return a
+	// successful result when the recorder is missing or misconfigured.
+	if o.EvidenceStore == nil {
+		return PipelineResult{}, errors.New("durable evidence recorder is required")
+	}
+
+	// Build the complete evidence batch. The store commits all events
+	// atomically so a failed write cannot leave a partial batch to duplicate
+	// on a later retry.
+	{
+		events := []evidence.Event{
+			{
+				EventType: "orchestration.classified",
+				ActorType: "system",
+				ActorID:   "orchestrator",
+				Message:   fmt.Sprintf("intent=%s", classResult.Intent),
+			},
+			{
+				EventType: "orchestration.planned",
+				ActorType: "system",
+				ActorID:   "orchestrator",
+				Message:   fmt.Sprintf("tasks=%d", len(plan.Tasks)),
+			},
+		}
+
+		var verificationErr error
+		if o.VerificationEngine != nil {
+			vr, verifyErr := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
+			if verifyErr != nil {
+				verificationErr = fmt.Errorf("verify orchestration result: %w", verifyErr)
+				events = append(events, evidence.Event{
+					EventType: "orchestration.verification_error",
+					ActorType: "system",
+					ActorID:   "verification",
+					Message:   fmt.Sprintf("error=%s", verifyErr),
+				})
+			} else {
+				events = append(events, evidence.Event{
+					EventType:     "orchestration.verified",
+					ActorType:     "system",
+					ActorID:       "verification",
+					Message:       fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome),
+					CorrelationID: vr.VerificationID,
+				})
+				if vr.Result != verification.ResultVerified {
+					verificationErr = fmt.Errorf("verification %s: expected %q, observed %q", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome)
+				}
+			}
+		}
+
+		// A failed or inconclusive verification is durably recorded, but it
+		// must never be represented as a completed orchestration.
+		if verificationErr == nil {
+			events = append(events, evidence.Event{
+				EventType: "orchestration.completed",
+				ActorType: "system",
+				ActorID:   "orchestrator",
+				Message:   fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed),
+			})
+		}
+		if err := o.EvidenceStore.RecordEvents(ctx, clientID, requestID, events); err != nil {
+			return PipelineResult{}, fmt.Errorf("record orchestration evidence batch: %w", err)
+		}
+		if verificationErr != nil {
+			return PipelineResult{}, verificationErr
+		}
+	}
+
+	// The in-memory completion marker must never precede durable evidence.
 	if o.Audit != nil {
 		_ = o.Audit.Record(requestID, "orchestration.completed", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed))
-	}
-
-	// 6. Record evidence events (fail-safe; does not fail the pipeline)
-	if o.EvidenceStore != nil {
-		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.classified", "system", "orchestrator", fmt.Sprintf("intent=%s", classResult.Intent), "")
-		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.planned", "system", "orchestrator", fmt.Sprintf("tasks=%d", len(plan.Tasks)), "")
-		_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.completed", "system", "orchestrator", fmt.Sprintf("intent=%s allowed=%v", classResult.Intent, rtResult.Allowed), "")
-	}
-
-	// 7. Run verification and record result as evidence (fail-safe)
-	if o.VerificationEngine != nil && o.EvidenceStore != nil {
-		vr, verr := o.VerificationEngine.Verify(ctx, requestID, string(classResult.Intent), string(plan.Intent))
-		if verr == nil {
-			_ = o.EvidenceStore.RecordEvent(ctx, clientID, requestID, "orchestration.verified", "system", "verification", fmt.Sprintf("result=%s expected=%s observed=%s", vr.Result, vr.ExpectedOutcome, vr.ObservedOutcome), vr.VerificationID)
-		}
 	}
 
 	return PipelineResult{

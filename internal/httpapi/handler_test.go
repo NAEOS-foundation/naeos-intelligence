@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/github"
 	gov "github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
@@ -21,6 +22,12 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
 )
+
+type testEvidenceRecorder struct{}
+
+func (*testEvidenceRecorder) RecordEvents(context.Context, string, string, []evidence.Event) error {
+	return nil
+}
 
 type fakeVerifier struct {
 	principal Principal
@@ -475,6 +482,7 @@ func TestAnalyzeEndpoint_RunPipeline(t *testing.T) {
 	_ = reg.Register(&mockProvider{id: "test-provider"})
 	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
+	orch.EvidenceStore = &testEvidenceRecorder{}
 
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), orch)
@@ -567,6 +575,7 @@ func TestAnalyzeEndpoint_WithGitHubResolver(t *testing.T) {
 	_ = reg.Register(&mockProvider{id: "test-provider"})
 	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
+	orch.EvidenceStore = &testEvidenceRecorder{}
 
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), orch)
@@ -639,6 +648,7 @@ func TestAnalyzeEndpoint_WithNAEOSCoreResolver(t *testing.T) {
 	_ = reg.Register(&mockProvider{id: "test-provider"})
 	rp := runtime.NewProcessor(reg, nil)
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
+	orch.EvidenceStore = &testEvidenceRecorder{}
 
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), orch)

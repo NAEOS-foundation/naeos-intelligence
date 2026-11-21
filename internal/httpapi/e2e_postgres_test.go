@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
@@ -79,7 +80,13 @@ func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "e2e-provider"})
 	rp := runtime.NewProcessor(reg, nil)
-	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
+	dsn := e2ePostgresDSN(t)
+	pool, err := postgres.OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open evidence pool: %v", err)
+	}
+	t.Cleanup(func() { pool.Close() })
+	orch := orchestrator.NewOrchestratorWithEvidence(cl, cb, pl, rp, evidence.New(pool), nil)
 	return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), orch), store
 }
 
