@@ -62,7 +62,7 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 		t.Fatal(err)
 	}
 	if principal.ClientID != "svc-crm" || principal.Subject != "user-123" || principal.Issuer != verifier.issuer ||
-		principal.OwnerID() != "user:"+verifier.issuer+":user-123" ||
+		principal.OwnerID() != "user:"+base64.RawURLEncoding.EncodeToString([]byte(verifier.issuer))+":"+base64.RawURLEncoding.EncodeToString([]byte("user-123")) ||
 		!principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
 		t.Fatalf("unexpected principal: %+v", principal)
 	}
