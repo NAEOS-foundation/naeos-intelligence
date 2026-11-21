@@ -36,7 +36,7 @@ func NewHandler(store Store, auth Authenticator, limiter *ratelimit.Limiter, val
 	h.mux.Handle("POST /api/v1/intelligence/requests", auth.Middleware("intelligence:write", http.HandlerFunc(h.submit)))
 	h.mux.Handle("GET /api/v1/intelligence/requests/{request_id}", auth.Middleware("intelligence:read", http.HandlerFunc(h.get)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/cancel", auth.Middleware("intelligence:write", http.HandlerFunc(h.cancel)))
-	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:write", http.HandlerFunc(h.approve)))
+	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:approve", http.HandlerFunc(h.approve)))
 	h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/analyze", auth.Middleware("intelligence:read", http.HandlerFunc(h.analyze)))
 
 	var wrapped http.Handler = h.mux
@@ -178,9 +178,22 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnprocessableEntity, "UNPROCESSABLE_REQUEST", err.Error())
 		return
 	}
-	decision, err := h.store.RecordApprovalDecision(r.Context(), p.OwnerID(), r.PathValue("request_id"), input.Decision, input.ApprovedBy, input.Reason)
+	approverID := p.ApproverID()
+	if approverID == "" {
+		writeProblem(w, r, http.StatusForbidden, "FORBIDDEN", "A verified human subject is required to approve governed requests")
+		return
+	}
+	decisionValue := strings.ToLower(strings.TrimSpace(input.Decision))
+	if decisionValue == "denied" {
+		decisionValue = "rejected"
+	}
+	decision, err := h.store.RecordApprovalDecision(r.Context(), p.OwnerID(), r.PathValue("request_id"), decisionValue, approverID, input.Reason)
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
+		return
+	}
+	if errors.Is(err, ErrConflict) {
+		writeProblem(w, r, http.StatusConflict, "CONFLICT", "Approval is not valid for the current request state")
 		return
 	}
 	if err != nil {
@@ -205,10 +218,6 @@ func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Authentication is required")
 		return
 	}
-	if h.orchestrator == nil {
-		writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Intelligence pipeline is not configured")
-		return
-	}
 	req, err := h.store.Get(r.Context(), p.OwnerID(), r.PathValue("request_id"))
 	if errors.Is(err, ErrNotFound) {
 		writeProblem(w, r, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Request was not found")
@@ -216,6 +225,14 @@ func (h *Handler) analyze(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeProblem(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Request could not be retrieved")
+		return
+	}
+	if req.ExecutionMode == "governed" {
+		writeProblem(w, r, http.StatusConflict, "EXECUTION_NOT_AUTHORIZED", "governed requests cannot run through the analysis endpoint; approval alone does not authorize execution")
+		return
+	}
+	if h.orchestrator == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "Intelligence pipeline is not configured")
 		return
 	}
 

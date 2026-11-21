@@ -152,6 +152,20 @@ func (s *MemoryStore) RecordApprovalDecision(ctx context.Context, clientID, requ
 	if !ok || req.ClientID != clientID {
 		return gov.ApprovalDecision{}, ErrNotFound
 	}
+	if req.ExecutionMode != "governed" {
+		return gov.ApprovalDecision{}, ErrConflict
+	}
+	if previous, exists := s.approval.Get(requestID); exists && previous.Decision != "pending" {
+		if previous.Decision == strings.TrimSpace(decision) &&
+			previous.ApprovedBy == strings.TrimSpace(approvedBy) &&
+			previous.Reason == strings.TrimSpace(reason) {
+			return previous, nil
+		}
+		return gov.ApprovalDecision{}, ErrConflict
+	}
+	if req.Status != StatusRequiresApproval {
+		return gov.ApprovalDecision{}, ErrConflict
+	}
 	if s.approval == nil {
 		s.approval = gov.NewApprovalWorkflow()
 	}
@@ -166,12 +180,14 @@ func (s *MemoryStore) RecordApprovalDecision(ctx context.Context, clientID, requ
 	case "approved":
 		if req.Status == StatusRequiresApproval {
 			req.Status = StatusQueued
+			req.ApprovalRequired = false
 			req.UpdatedAt = time.Now().UTC()
 			s.requests[requestID] = req
 		}
 	case "denied", "rejected":
 		if req.Status == StatusRequiresApproval || req.Status == StatusQueued {
 			req.Status = StatusCancelled
+			req.ApprovalRequired = false
 			req.UpdatedAt = time.Now().UTC()
 			s.requests[requestID] = req
 		}

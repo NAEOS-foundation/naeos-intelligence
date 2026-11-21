@@ -11,17 +11,17 @@ type RequestInput struct {
 	ExecutionMode string
 }
 
-// Decision captures whether a request may proceed and whether an approval step
-// is required in a future governed workflow.
+// Decision captures admission and approval requirements. Approval is not
+// execution authorization; runtime policy must independently authorize actions.
 type Decision struct {
 	Allowed          bool   `json:"allowed"`
 	ApprovalRequired bool   `json:"approval_required"`
 	Reason           string `json:"reason,omitempty"`
 }
 
-// EvaluateRequest enforces the current read-only MVP boundary: only analysis_only
-// requests are allowed. Governed execution is intentionally rejected and marked
-// for a future approved workflow.
+// EvaluateRequest admits analysis-only requests and stages governed requests
+// behind an explicit human approval boundary. Governed requests remain denied
+// for execution until a separate authorization decision is made at runtime.
 func EvaluateRequest(in RequestInput) (Decision, error) {
 	trimmedPurpose := strings.TrimSpace(in.Purpose)
 	if trimmedPurpose == "" || len(trimmedPurpose) > 2000 {
@@ -32,8 +32,8 @@ func EvaluateRequest(in RequestInput) (Decision, error) {
 	case "analysis_only":
 		return Decision{Allowed: true, ApprovalRequired: false, Reason: "analysis-only requests are permitted in the read-only MVP"}, nil
 	case "governed":
-		return Decision{Allowed: false, ApprovalRequired: true, Reason: "governed execution requires a separately approved approval and runtime policy flow"}, fmt.Errorf("execution_mode must be analysis_only in the MVP")
+		return Decision{Allowed: false, ApprovalRequired: true, Reason: "governed request requires explicit human approval before authorization"}, nil
 	default:
-		return Decision{Allowed: false, ApprovalRequired: false, Reason: "execution_mode must be analysis_only in the MVP"}, fmt.Errorf("execution_mode must be analysis_only in the MVP")
+		return Decision{Allowed: false, ApprovalRequired: false, Reason: "execution_mode must be analysis_only or governed"}, fmt.Errorf("execution_mode must be analysis_only or governed")
 	}
 }
