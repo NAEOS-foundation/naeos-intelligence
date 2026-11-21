@@ -94,6 +94,7 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"\"200\":",
 		"#/components/schemas/ApprovalDecisionResponse",
 		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
+		"409":\n          $ref: "#/components/responses/Problem"
 	)
 
 	approvalInput := sectionBetween(t, spec, "    ApprovalDecisionInput:\n", "    ApprovalDecisionResponse:\n")
@@ -141,6 +142,6 @@ func TestOpenAPIProblemEnvelopeAndInputBounds(t *testing.T) {
 	requestSchema := sectionBetween(t, spec, "    Request:\n", "    CancellationAccepted:\n")
 	assertOpenAPIContains(t, requestSchema,
 		"approval_required: { type: boolean }",
-		"execution_mode: { type: string, const: analysis_only }",
+		"execution_mode: { type: string, enum: [analysis_only, governed] }",
 	)
 }

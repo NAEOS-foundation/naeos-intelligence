@@ -470,8 +470,7 @@ func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *t
 	}
 
 	// Approval endpoint ownership is checked against the same persisted owner key.
-	// The public request contract currently permits analysis_only; do not invent a
-	// governed execution mode merely to exercise the ownership boundary.
+	// Client B shares the OAuth client_id but must not approve A's governed request.
 	approvalBody := `{"decision":"approved","approved_by":"reviewer-a","reason":"authorized test decision"}`
 	if rec := do(hB, http.MethodPost, requestA.StatusURL+"/approval", approvalBody, ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("cross-owner APPROVAL status=%d, want 404: %s", rec.Code, rec.Body.String())

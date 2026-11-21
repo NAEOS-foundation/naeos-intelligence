@@ -313,7 +313,7 @@ components:
         request_id: { type: string }
         status: { $ref: "#/components/schemas/Status" }
         purpose: { type: string }
-        execution_mode: { type: string, const: analysis_only }
+        execution_mode: { type: string, enum: [analysis_only, governed] }
         approval_required: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
