@@ -90,6 +90,7 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 	approval := sectionBetween(t, spec, "  /intelligence/requests/{request_id}/approval:\n", "components:\n")
 	assertOpenAPIContains(t, approval,
 		"operationId: recordApprovalDecision",
+		"bearerAuth: [intelligence:approve]",
 		"\"200\":",
 		"#/components/schemas/ApprovalDecisionResponse",
 		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
@@ -131,7 +132,7 @@ func TestOpenAPIProblemEnvelopeAndInputBounds(t *testing.T) {
 	assertOpenAPIContains(t, requestInput,
 		"purpose: { type: string, minLength: 1, maxLength: 2000 }",
 		"maxItems: 100",
-		"execution_mode: { type: string, const: analysis_only }",
+		"execution_mode: { type: string, enum: [analysis_only, governed] }",
 		"maxItems: 50",
 		"maxProperties: 50",
 		"additionalProperties: { type: string, maxLength: 256 }",

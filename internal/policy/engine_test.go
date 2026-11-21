@@ -15,16 +15,16 @@ func TestEvaluateRequestAllowsAnalysisOnlyMode(t *testing.T) {
 	}
 }
 
-func TestEvaluateRequestRejectsGovernedExecutionMode(t *testing.T) {
+func TestEvaluateRequestStagesGovernedModeForApproval(t *testing.T) {
 	decision, err := EvaluateRequest(RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"})
-	if err == nil {
-		t.Fatal("governed execution mode should be rejected")
+	if err != nil {
+		t.Fatalf("governed request should be accepted for approval staging: %v", err)
 	}
 	if decision.Allowed {
-		t.Fatal("governed execution mode should be denied")
+		t.Fatal("governed request must not be authorized for execution")
 	}
 	if !decision.ApprovalRequired {
-		t.Fatal("governed execution mode should be flagged as approval-required for future workflow")
+		t.Fatal("governed request must require explicit approval")
 	}
 }
 

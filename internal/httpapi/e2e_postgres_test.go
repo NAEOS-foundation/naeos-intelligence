@@ -386,7 +386,7 @@ func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *t
 	defer cancel()
 
 	store := e2ePostgresStore(t, ctx)
-	scopes := map[string]bool{"intelligence:write": true, "intelligence:read": true}
+	scopes := map[string]bool{"intelligence:write": true, "intelligence:read": true, "intelligence:approve": true}
 	principalA := httpapi.Principal{
 		Issuer: "https://issuer.example/auth/v1", Subject: "http-user-a",
 		ClientID: "shared-crm-web-client", Scopes: scopes,

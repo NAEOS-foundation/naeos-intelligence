@@ -37,6 +37,9 @@ func TestPostgresDurableApprovalDecision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create governed request: %v", err)
 	}
+	if request.Status != httpapi.StatusRequiresApproval || !request.ApprovalRequired {
+		t.Fatalf("governed request must be persisted as approval-pending: %+v", request)
+	}
 
 	if _, err := store.RecordApprovalDecision(ctx, "other-tenant", request.RequestID, "approved", "reviewer", "ok"); !errors.Is(err, httpapi.ErrNotFound) {
 		t.Fatalf("cross-tenant decision should be not found, got %v", err)
