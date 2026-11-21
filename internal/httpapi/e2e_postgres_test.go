@@ -379,3 +379,104 @@ func (m *mockProvider) Generate(context.Context, model.Request) (model.Response,
 }
 func (m *mockProvider) HealthCheck(context.Context) error { return nil }
 func (m *mockProvider) Capabilities() []string            { return []string{"text"} }
+
+
+func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	store := e2ePostgresStore(t, ctx)
+	scopes := map[string]bool{"intelligence:write": true, "intelligence:read": true}
+	principalA := httpapi.Principal{
+		Issuer: "https://issuer.example/auth/v1", Subject: "http-user-a",
+		ClientID: "shared-crm-web-client", Scopes: scopes,
+	}
+	principalB := httpapi.Principal{
+		Issuer: "https://issuer.example/auth/v1", Subject: "http-user-b",
+		ClientID: "shared-crm-web-client", Scopes: scopes,
+	}
+	newHandler := func(principal httpapi.Principal, withOrchestrator bool) http.Handler {
+		var orch *orchestrator.Orchestrator
+		if withOrchestrator {
+			cl := classifier.NewRuleClassifier()
+			cb := intctx.NewRuleBuilder()
+			pl := planner.NewRulePlanner()
+			reg := model.NewRegistry()
+			if err := reg.Register(&mockProvider{id: "shared-owner-e2e-provider"}); err != nil {
+				t.Fatalf("register mock provider: %v", err)
+			}
+			orch = orchestrator.NewOrchestrator(cl, cb, pl, runtime.NewProcessor(reg, nil))
+		}
+		auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: principal}}
+		return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), orch)
+	}
+	hA := newHandler(principalA, true)
+	hB := newHandler(principalB, true)
+
+	do := func(h http.Handler, method, path, body, idem string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer fake")
+		req.Header.Set("Content-Type", "application/json")
+		if idem != "" {
+			req.Header.Set("Idempotency-Key", idem)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	submit := func(h http.Handler, body, key string) httpapi.Accepted {
+		t.Helper()
+		rec := do(h, http.MethodPost, "/api/v1/intelligence/requests", body, key)
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("submit status=%d, want 202: %s", rec.Code, rec.Body.String())
+		}
+		var accepted httpapi.Accepted
+		if err := json.Unmarshal(rec.Body.Bytes(), &accepted); err != nil {
+			t.Fatalf("decode accepted response: %v", err)
+		}
+		return accepted
+	}
+
+	// A and B share the same OAuth client_id but have different issuer-qualified subjects.
+	// The same idempotency key must create independent records, not replay across users.
+	analysisBody := `{"purpose":"shared client owner isolation","execution_mode":"analysis_only","context_sources":[{"type":"repository","reference":"github.com/naeos/test"}],"desired_outputs":["trace"]}`
+	key := "shared-owner-idem-" + t.Name()
+	requestA := submit(hA, analysisBody, key)
+	requestB := submit(hB, analysisBody, key)
+	if requestA.RequestID == requestB.RequestID {
+		t.Fatal("different human subjects sharing one client_id must not share idempotency records")
+	}
+	replayA := do(hA, http.MethodPost, "/api/v1/intelligence/requests", analysisBody, key)
+	if replayA.Code != http.StatusAccepted || replayA.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("same-owner replay status=%d replay-header=%q body=%s", replayA.Code, replayA.Header().Get("Idempotency-Replayed"), replayA.Body.String())
+	}
+	var replayed httpapi.Accepted
+	if err := json.Unmarshal(replayA.Body.Bytes(), &replayed); err != nil || replayed.RequestID != requestA.RequestID {
+		t.Fatalf("same-owner replay returned request=%q err=%v, want %q", replayed.RequestID, err, requestA.RequestID)
+	}
+
+	// Cross-owner GET, CANCEL, and ANALYZE must all be indistinguishable from missing.
+	if rec := do(hB, http.MethodGet, requestA.StatusURL, "", ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner GET status=%d, want 404: %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(hB, http.MethodPost, requestA.StatusURL+"/cancel", "", ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner CANCEL status=%d, want 404: %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(hB, http.MethodPost, requestA.StatusURL+"/analyze", `{}`, ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner ANALYZE status=%d, want 404: %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(hA, http.MethodGet, requestA.StatusURL, "", ""); rec.Code != http.StatusOK {
+		t.Fatalf("owner GET status=%d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	// Approval uses a governed request; B must not be able to record a decision for A.
+	governedBody := `{"purpose":"shared client approval isolation","execution_mode":"governed","desired_outputs":["approval_record"]}`
+	governedA := submit(hA, governedBody, "shared-owner-approval-"+t.Name())
+	approvalBody := `{"decision":"approved","approved_by":"reviewer-a","reason":"authorized test decision"}`
+	if rec := do(hB, http.MethodPost, governedA.StatusURL+"/approval", approvalBody, ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-owner APPROVAL status=%d, want 404: %s", rec.Code, rec.Body.String())
+	}
+	if rec := do(hA, http.MethodGet, governedA.StatusURL, "", ""); rec.Code != http.StatusOK {
+		t.Fatalf("owner must retain access after rejected cross-owner lifecycle operations: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
