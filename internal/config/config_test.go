@@ -144,3 +144,18 @@ func TestValidateRejectsInvalidOpenAPISpecPath(t *testing.T) {
 		t.Fatal("Validate() error = nil, want validation error for empty spec path")
 	}
 }
+
+func TestCoreURLAllowsDockerGatewayOnlyInDevelopment(t *testing.T) {
+	_, err := Load([]string{"NAEOS_INTELLIGENCE_CORE_API_BASE_URL=http://host.docker.internal:8081/api"})
+	if err != nil {
+		t.Fatalf("development Docker gateway URL rejected: %v", err)
+	}
+
+	_, err = Load([]string{
+		"NAEOS_INTELLIGENCE_APP_ENVIRONMENT=production",
+		"NAEOS_INTELLIGENCE_CORE_API_BASE_URL=http://host.docker.internal:8081/api",
+	})
+	if err == nil {
+		t.Fatal("production accepted insecure Docker gateway URL")
+	}
+}

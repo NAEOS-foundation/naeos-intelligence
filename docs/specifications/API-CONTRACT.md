@@ -5,7 +5,7 @@
 **Location:** `docs/specifications/API-CONTRACT.md`  
 **Status:** Draft Proposed  
 **Version:** 0.1.0  
-**Last Updated:** 2026-11-04
+**Last Updated:** 2026-11-10
 
 ---
 
@@ -60,11 +60,13 @@ The deployment may expose a different external prefix, but the logical API versi
 
 ## 4. Authentication and Authorization
 
-All intelligence operations must require authentication.
+All intelligence operations must require authentication. The minimal `/health` and `/ready` probes are public and return no user or request data.
 
 The current HTTP API contains a `TokenVerifier` boundary and a JWKS-backed JWT verifier scaffold configured by issuer, audience, and JWKS URL. Protected routes fail closed when the verifier is absent or configuration is invalid. This implementation scaffold does not by itself constitute an accepted deployment IAM decision.
 
 Provider/client registration, tenant and actor claim semantics, trust ownership, key rotation and revocation operations, and production IAM acceptance remain subject to the Phase 5 IAM decision worksheet and deployment validation. The supported authentication contract and token validation requirements must be formally accepted before Early Access deployment.
+
+The accepted MVP planning baseline is one logical tenant per deployment with no tenant claim or caller-supplied tenant identifier (ADR-0003). This is not runtime-enforced tenant isolation; deployment trust boundaries remain subject to validation.
 
 ### Authorization Requirements
 
@@ -103,7 +105,7 @@ These resources may be represented through dedicated API endpoints or embedded i
 
 ## 6. Intelligence Request Lifecycle
 
-The initial request lifecycle is:
+The target request lifecycle is:
 
 `accepted → queued → running → completed`
 
@@ -113,7 +115,7 @@ Additional terminal or exceptional states include:
 - `cancelled`
 - `requires_approval` (reserved for separately accepted later-phase governed workflows; not an enabled MVP state)
 
-The lifecycle must be implemented consistently across API responses and internal workflow state.
+The MVP implementation currently accepts requests in `accepted` and supports cancellation before processing. It does not run a worker that advances requests through `queued`, `running`, or `completed`. Those states remain part of the target lifecycle and must not be represented as implemented behavior.
 
 ### State Definitions
 
@@ -177,7 +179,7 @@ Submit a new intelligence request for processing.
 |---|---|---|---|
 | `purpose` | string | Yes | The objective of the intelligence request |
 | `context_sources` | array | No | References to authorized information sources |
-| `execution_mode` | string | Yes | Requested processing mode |
+| `execution_mode` | string | Yes | Requested processing mode; MVP supports `analysis_only` |
 | `desired_outputs` | array | No | Requested output categories |
 | `metadata` | object | No | Non-sensitive client metadata |
 
@@ -197,12 +199,13 @@ HTTP `202 Accepted`
 {
   "request_id": "intreq_01HXYZ",
   "status": "accepted",
+  "approval_required": false,
   "created_at": "2026-11-04T10:00:00Z",
   "status_url": "/v1/intelligence/requests/intreq_01HXYZ"
 }
 ```
 
-The response confirms acceptance of the request, not successful completion.
+The response confirms acceptance of the request, not successful completion. The implementation also returns `Location` and `X-Request-ID` headers, and may return `Idempotency-Replayed: true` for an idempotent replay.
 
 ### 7.2 Retrieve an Intelligence Request
 
@@ -221,30 +224,16 @@ HTTP `200 OK`
 ```json
 {
   "request_id": "intreq_01HXYZ",
-  "status": "completed",
+  "status": "accepted",
+  "approval_required": false,
   "purpose": "Analyze repository engineering risks",
   "execution_mode": "analysis_only",
   "created_at": "2026-11-04T10:00:00Z",
-  "updated_at": "2026-11-04T10:05:00Z",
-  "result": {
-    "summary": "Repository analysis completed.",
-    "outputs": [
-      {
-        "type": "risk_assessment",
-        "reference": "result_01HXYZ"
-      }
-    ],
-    "evidence": [
-      {
-        "type": "repository_reference",
-        "reference": "evidence_01HXYZ"
-      }
-    ]
-  }
+  "updated_at": "2026-11-04T10:00:00Z"
 }
 ```
 
-The `result` field may be absent while processing is incomplete.
+Analysis output is returned by the separate analyze operation; it is not embedded in this request representation.
 
 The API must return only information that the authenticated client is authorized to access.
 
@@ -276,7 +265,19 @@ The implementation must define behavior for requests that are already completed 
 
 Cancellation must not bypass the runtime's safety controls.
 
-### 7.4 Health Check
+### 7.4 Analyze an Accepted Request
+
+**Endpoint**
+
+`POST /v1/intelligence/requests/{request_id}/analyze`
+
+**Purpose**
+
+Run the read-only intelligence pipeline for a request owned by the authenticated client. The optional body may override `desired_outputs`. The response contains a proposed plan, policy assessment, and provenance; it does not authorize or initiate consequential actions and does not advance the request lifecycle state.
+
+The response schema is `AnalyzeResponse` in `api/openapi.yaml`. The operation requires the `intelligence:read` scope.
+
+### 7.5 Health Check
 
 **Endpoint**
 
@@ -298,7 +299,15 @@ HTTP `200 OK`
 
 The health endpoint must not expose credentials, internal configuration, sensitive infrastructure details, or user data.
 
-A separate readiness endpoint may be introduced for deployment orchestration.
+### 7.6 Readiness Check
+
+**Endpoint**
+
+`GET /v1/ready`
+
+**Purpose**
+
+Report whether the configured request store is reachable. It is a public infrastructure probe and does not establish that authentication or model integrations are ready.
 
 ## 8. Standard Error Contract
 

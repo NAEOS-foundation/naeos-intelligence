@@ -5,7 +5,7 @@
 **Location:** `docs/specifications/DATA-MODEL.md`  
 **Status:** Draft Proposed  
 **Version:** 0.1.0  
-**Last Updated:** 2026-11-04
+**Last Updated:** 2026-11-10
 
 ---
 
@@ -389,6 +389,8 @@ Deletion must not silently remove records required for security, compliance, or 
 The final retention durations remain an implementation and governance decision.
 
 ## 18. Data Isolation
+
+For the MVP, ADR-0003 defines one logical tenant per deployment. Request records remain client-scoped and do not carry a tenant identifier. This is a planning boundary, not proof that deployment identity configuration enforces tenant isolation. Revisit the model before sharing a deployment across tenants.
 
 Where multi-tenancy is enabled:
 
