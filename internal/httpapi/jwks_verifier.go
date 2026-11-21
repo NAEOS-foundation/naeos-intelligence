@@ -119,9 +119,9 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		(claims.NotBefore != 0 && claims.NotBefore > now) {
 		return Principal{}, errors.New("JWT claims failed validation")
 	}
-	subject := strings.TrimSpace(claims.Subject)
+	subject := claims.Subject
 	clientID := strings.TrimSpace(claims.ClientID)
-	if subject == "" && clientID == "" {
+	if strings.TrimSpace(subject) == "" && clientID == "" {
 		return Principal{}, errors.New("JWT has no subject or client identity")
 	}
 	scopes := make(map[string]bool)
