@@ -120,3 +120,69 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 		t.Fatalf("terminal transition must be one-shot, got %v", err)
 	}
 }
+
+
+func TestPostgresStoreSeparatesHumanOwnersAndPreservesLegacyClientOwner(t *testing.T) {
+	if os.Getenv("NAEOS_POSTGRES_INTEGRATION") != "1" {
+		t.Skip("set NAEOS_POSTGRES_INTEGRATION=1 to run PostgreSQL integration test")
+	}
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		t.Fatal("DATABASE_URL must be set for PostgreSQL integration test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := Up(ctx, dsn, "../../migrations"); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open pool: %v", err)
+	}
+	defer pool.Close()
+	store := New(pool)
+
+	// Both human principals use the same OAuth application client. Their
+	// issuer-qualified owner keys must remain isolated in persistence.
+	const sharedClientID = "crm-web-client"
+	const issuer = "https://issuer.example/auth/v1"
+	userAOwner := httpapi.Principal{Issuer: issuer, Subject: "user-a", ClientID: sharedClientID}.OwnerID()
+	userBOwner := httpapi.Principal{Issuer: issuer, Subject: "user-b", ClientID: sharedClientID}.OwnerID()
+	input := httpapi.RequestInput{Purpose: "owner isolation integration", ExecutionMode: "analysis_only"}
+
+	userARequest, _, err := store.Create(ctx, userAOwner, "same-idempotency-key", input, "owner-a")
+	if err != nil {
+		t.Fatalf("create user A request: %v", err)
+	}
+	userBRequest, _, err := store.Create(ctx, userBOwner, "same-idempotency-key", input, "owner-b")
+	if err != nil {
+		t.Fatalf("create user B request with same client and idempotency key: %v", err)
+	}
+	if userARequest.RequestID == userBRequest.RequestID {
+		t.Fatal("different human owners must not share a request")
+	}
+	if _, err := store.Get(ctx, userAOwner, userBRequest.RequestID); !errors.Is(err, httpapi.ErrNotFound) {
+		t.Fatalf("user A must not read user B request, got %v", err)
+	}
+	if _, err := store.Get(ctx, userBOwner, userARequest.RequestID); !errors.Is(err, httpapi.ErrNotFound) {
+		t.Fatalf("user B must not read user A request, got %v", err)
+	}
+
+	// A legacy row remains addressable only through its historical client key.
+	legacyRequest, _, err := store.Create(ctx, sharedClientID, "legacy-idempotency-key", input, "legacy")
+	if err != nil {
+		t.Fatalf("create legacy client-owned request: %v", err)
+	}
+	if _, err := store.Get(ctx, userAOwner, legacyRequest.RequestID); !errors.Is(err, httpapi.ErrNotFound) {
+		t.Fatalf("human principal must not inherit legacy client-owned request: %v", err)
+	}
+	if _, err := store.Get(ctx, userBOwner, legacyRequest.RequestID); !errors.Is(err, httpapi.ErrNotFound) {
+		t.Fatalf("second human principal must not inherit legacy client-owned request: %v", err)
+	}
+	if _, err := store.Get(ctx, sharedClientID, legacyRequest.RequestID); err != nil {
+		t.Fatalf("legacy client must retain access to its legacy-owned request: %v", err)
+	}
+	if _, err := store.Get(ctx, sharedClientID, userARequest.RequestID); !errors.Is(err, httpapi.ErrNotFound) {
+		t.Fatalf("legacy client must not inherit human-owned request: %v", err)
+	}
+}
