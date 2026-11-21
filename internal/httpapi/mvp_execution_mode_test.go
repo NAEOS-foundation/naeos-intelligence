@@ -19,8 +19,8 @@ func TestValidateInputAcceptsGovernedModeAsApprovalGated(t *testing.T) {
 
 func TestSubmitStagesGovernedRequestForApproval(t *testing.T) {
 	h := testHandler()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests",
-		strings.NewReader(`{"purpose":"governed operation","execution_mode":"governed"}`))
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests",
+		`{"purpose":"governed operation","execution_mode":"governed"}`)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
@@ -45,7 +45,7 @@ func TestAnalyzeRejectsGovernedRequestEvenAfterApproval(t *testing.T) {
 	if _, err := store.RecordApprovalDecision(context.Background(), principal.OwnerID(), req.RequestID, "approved", principal.Subject, "approved"); err != nil { t.Fatal(err) }
 	auth := Authenticator{Verifier: fakeVerifier{principal: principal}}
 	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests/"+req.RequestID+"/analyze", strings.NewReader(`{}`))
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests/"+req.RequestID+"/analyze", `{}`)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, r)
