@@ -94,7 +94,7 @@ func TestOpenAPIOperationContracts(t *testing.T) {
 		"\"200\":",
 		"#/components/schemas/ApprovalDecisionResponse",
 		"\"404\":\n          $ref: \"#/components/responses/Problem\"",
-		"409":\n          $ref: "#/components/responses/Problem"
+		"\"409\":\n          $ref: \"#/components/responses/Problem\""
 	)
 
 	approvalInput := sectionBetween(t, spec, "    ApprovalDecisionInput:\n", "    ApprovalDecisionResponse:\n")
