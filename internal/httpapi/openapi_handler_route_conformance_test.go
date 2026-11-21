@@ -45,7 +45,7 @@ func TestOpenAPIOperationsMatchHTTPRoutes(t *testing.T) {
 		},
 		{
 			name: "approve", route: `h.mux.Handle("POST /api/v1/intelligence/requests/{request_id}/approval", auth.Middleware("intelligence:approve", http.HandlerFunc(h.approve)))`,
-			path: "  /intelligence/requests/{request_id}/approval:\n", method: "post:", operationID: "recordApprovalDecision", scope: "intelligence:write",
+			path: "  /intelligence/requests/{request_id}/approval:\n", method: "post:", operationID: "recordApprovalDecision", scope: "intelligence:approve",
 		},
 	}
 
