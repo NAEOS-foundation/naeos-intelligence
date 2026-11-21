@@ -490,7 +490,7 @@ func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *t
 	if err := json.Unmarshal(ownerApproval.Body.Bytes(), &approvalResult); err != nil {
 		t.Fatalf("decode approval response: %v", err)
 	}
-	if approvalResult.ApprovedBy != principalA.Subject || approvalResult.Decision != "approved" {
+	if approvalResult.ApprovedBy != principalA.OwnerID() || approvalResult.Decision != "approved" {
 		t.Fatalf("approval must be attributed to verified human subject: %+v", approvalResult)
 	}
 	afterApproval, err := store.Get(ctx, principalA.OwnerID(), governedRequestA.RequestID)

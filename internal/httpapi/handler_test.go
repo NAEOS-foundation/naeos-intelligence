@@ -196,8 +196,8 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	if decision.Decision != "approved" {
 		t.Fatalf("decision=%q, want approved", decision.Decision)
 	}
-	if decision.ApprovedBy != principal.Subject {
-		t.Fatalf("approved_by=%q, want verified subject %q", decision.ApprovedBy, principal.Subject)
+	if decision.ApprovedBy != principal.OwnerID() {
+		t.Fatalf("approved_by=%q, want issuer-qualified verified identity %q", decision.ApprovedBy, principal.OwnerID())
 	}
 	if decision.RequestID != req.RequestID {
 		t.Fatalf("request_id=%q, want %q", decision.RequestID, req.RequestID)

@@ -19,13 +19,13 @@ type Principal struct {
 	Scopes   map[string]bool
 }
 
-// ApproverID returns the human subject from the verified issuer/subject pair.
+// ApproverID returns the issuer-qualified human identity from the verified JWT.
 // The request body must never be trusted to identify the approval actor.
 func (p Principal) ApproverID() string {
 	if strings.TrimSpace(p.Issuer) == "" || strings.TrimSpace(p.Subject) == "" {
 		return ""
 	}
-	return p.Subject
+	return p.OwnerID()
 }
 
 func (p Principal) OwnerID() string {
