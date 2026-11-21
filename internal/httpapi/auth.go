@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strings"
 )
@@ -19,10 +20,10 @@ type Principal struct {
 }
 
 func (p Principal) OwnerID() string {
-	subject := strings.TrimSpace(p.Subject)
-	issuer := strings.TrimSpace(p.Issuer)
-	if subject != "" {
-		if issuer == "" {
+	subject := p.Subject
+	issuer := p.Issuer
+	if strings.TrimSpace(subject) != "" {
+		if strings.TrimSpace(issuer) == "" {
 			return ""
 		}
 		return "user:" + base64.RawURLEncoding.EncodeToString([]byte(issuer)) + ":" + base64.RawURLEncoding.EncodeToString([]byte(subject))
