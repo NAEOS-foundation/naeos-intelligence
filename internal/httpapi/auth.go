@@ -25,7 +25,7 @@ func (p Principal) OwnerID() string {
 		if issuer == "" {
 			return ""
 		}
-		return "user:" + issuer + ":" + subject
+		return "user:" + base64.RawURLEncoding.EncodeToString([]byte(issuer)) + ":" + base64.RawURLEncoding.EncodeToString([]byte(subject))
 	}
 	// Preserve existing storage ownership keys for client-only tokens.
 	return strings.TrimSpace(p.ClientID)
