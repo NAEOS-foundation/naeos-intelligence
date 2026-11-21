@@ -16,7 +16,7 @@ Deployment-level IAM validation, lifecycle-worker behavior, contract conformance
 ## 2. Current repository inventory
 
 ### Present
-- Go module: `go.mod`, `go.sum`; module path `github.com/NAEOS-foundation/naeos-intelligence`; Go baseline `1.26.10`.
+- Go module: `go.mod`, `go.sum`; module path `github.com/NAEOS-foundation/naeos-intelligence`; Go baseline `1.26.11`.
 - Service entrypoint: `cmd/naeos-intelligence/main.go` and bootstrap test.
 - Separate migration command: `cmd/naeos-intelligence-migrate/main.go`.
 - Application packages: `internal/config`, `internal/governance`, `internal/httpapi`, `internal/model`, `internal/observability`, `internal/policy`, `internal/postgres`, `internal/runtime`.

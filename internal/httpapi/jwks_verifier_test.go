@@ -51,6 +51,7 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 		"iss":       verifier.issuer,
 		"aud":       verifier.audience,
 		"client_id": "svc-crm",
+		"sub":       "user-123",
 		"exp":       now + 300,
 		"nbf":       now - 10,
 		"scope":     "intelligence:read intelligence:write",
@@ -60,7 +61,9 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if principal.ClientID != "svc-crm" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
+	if principal.ClientID != "svc-crm" || principal.Subject != "user-123" || principal.Issuer != verifier.issuer ||
+		principal.OwnerID() != "user:"+base64.RawURLEncoding.EncodeToString([]byte(verifier.issuer))+":"+base64.RawURLEncoding.EncodeToString([]byte("user-123")) ||
+		!principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
 		t.Fatalf("unexpected principal: %+v", principal)
 	}
 }
@@ -237,5 +240,35 @@ func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 				t.Fatal("JWT with invalid required claims must be rejected")
 			}
 		})
+	}
+}
+
+func TestJWKSVerifierPreservesOpaqueSubjectClaim(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := &JWKSVerifier{
+		issuer:    "https://issuer.test",
+		audience:  "naeos-api",
+		keys:      map[string]*rsa.PublicKey{"kid": &privateKey.PublicKey},
+		fetchedAt: time.Now(),
+	}
+	token := signedTestJWT(t, privateKey, "kid", map[string]any{
+		"iss": verifier.issuer,
+		"aud": verifier.audience,
+		"sub": "  opaque-subject  ",
+		"exp": time.Now().Unix() + 300,
+	})
+	principal, err := verifier.Verify(context.Background(), token)
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if principal.Subject != "  opaque-subject  " {
+		t.Fatalf("subject=%q; want exact opaque subject", principal.Subject)
+	}
+	wantOwner := "user:" + base64.RawURLEncoding.EncodeToString([]byte(verifier.issuer)) + ":" + base64.RawURLEncoding.EncodeToString([]byte("  opaque-subject  "))
+	if principal.OwnerID() != wantOwner {
+		t.Fatalf("owner=%q; want encoded opaque tuple %q", principal.OwnerID(), wantOwner)
 	}
 }

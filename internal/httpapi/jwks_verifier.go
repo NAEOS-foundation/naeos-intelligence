@@ -119,12 +119,10 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		(claims.NotBefore != 0 && claims.NotBefore > now) {
 		return Principal{}, errors.New("JWT claims failed validation")
 	}
+	subject := claims.Subject
 	clientID := strings.TrimSpace(claims.ClientID)
-	if clientID == "" {
-		clientID = strings.TrimSpace(claims.Subject)
-	}
-	if clientID == "" {
-		return Principal{}, errors.New("JWT has no client identity")
+	if strings.TrimSpace(subject) == "" && clientID == "" {
+		return Principal{}, errors.New("JWT has no subject or client identity")
 	}
 	scopes := make(map[string]bool)
 	for _, scope := range strings.Fields(claims.Scope) {
@@ -135,7 +133,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 			scopes[strings.TrimSpace(scope)] = true
 		}
 	}
-	return Principal{ClientID: clientID, Scopes: scopes}, nil
+	return Principal{Issuer: claims.Issuer, Subject: subject, ClientID: clientID, Scopes: scopes}, nil
 }
 
 func audienceContains(raw json.RawMessage, expected string) bool {

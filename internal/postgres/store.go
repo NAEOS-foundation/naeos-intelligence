@@ -49,6 +49,12 @@ func digest(input httpapi.RequestInput) (string, error) {
 }
 
 func (s *Store) Create(ctx context.Context, clientID, key string, input httpapi.RequestInput, correlationID string) (httpapi.Request, bool, error) {
+	initialStatus := string(httpapi.StatusAccepted)
+	transitionEvent := "request.accepted"
+	if input.ExecutionMode == "governed" {
+		initialStatus = string(httpapi.StatusRequiresApproval)
+		transitionEvent = "request.requires_approval"
+	}
 	d, err := digest(input)
 	if err != nil {
 		return httpapi.Request{}, false, err
@@ -86,9 +92,9 @@ func (s *Store) Create(ctx context.Context, clientID, key string, input httpapi.
 	if key != "" {
 		tag, err := tx.Exec(ctx, `INSERT INTO intelligence_requests
 			(id,client_id,purpose,execution_mode,status,context_sources,desired_outputs,metadata,idempotency_key,payload_digest)
-			VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7,$8,$9)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 			ON CONFLICT (client_id,idempotency_key) DO NOTHING`,
-			id, clientID, input.Purpose, input.ExecutionMode, contextSources, desiredOutputs, metadata, idem, payloadDigest)
+			id, clientID, input.Purpose, input.ExecutionMode, initialStatus, contextSources, desiredOutputs, metadata, idem, payloadDigest)
 		if err != nil {
 			return httpapi.Request{}, false, err
 		}
@@ -113,15 +119,15 @@ func (s *Store) Create(ctx context.Context, clientID, key string, input httpapi.
 	} else {
 		_, err = tx.Exec(ctx, `INSERT INTO intelligence_requests
 			(id,client_id,purpose,execution_mode,status,context_sources,desired_outputs,metadata,idempotency_key,payload_digest)
-			VALUES ($1,$2,$3,$4,'accepted',$5,$6,$7,NULL,NULL)`,
-			id, clientID, input.Purpose, input.ExecutionMode, contextSources, desiredOutputs, metadata)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL,NULL)`,
+			id, clientID, input.Purpose, input.ExecutionMode, initialStatus, contextSources, desiredOutputs, metadata)
 		if err != nil {
 			return httpapi.Request{}, false, err
 		}
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO request_transitions
 		(id,request_id,from_status,to_status,event_type,actor_type,actor_id,reason,correlation_id)
-		VALUES ($1,$2,NULL,'accepted','request.accepted','client',$3,NULL,$4)`, transitionID, id, clientID, nullIfBlank(correlationID))
+		VALUES ($1,$2,NULL,$3,$4,'client',$5,NULL,$6)`, transitionID, id, initialStatus, transitionEvent, clientID, nullIfBlank(correlationID))
 	if err != nil {
 		return httpapi.Request{}, false, err
 	}
@@ -162,6 +168,7 @@ func readRequest(ctx context.Context, q queryer, clientID, requestID string) (ht
 		return httpapi.Request{}, err
 	}
 	req.RequestID = id
+	req.ApprovalRequired = req.ExecutionMode == "governed" && req.Status == httpapi.StatusRequiresApproval
 	req.CreatedAt = req.CreatedAt.UTC()
 	req.UpdatedAt = req.UpdatedAt.UTC()
 	return req, nil

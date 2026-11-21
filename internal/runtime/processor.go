@@ -49,11 +49,14 @@ func (p *Processor) Process(requestID, purpose, executionMode string, requiredCa
 			if err != nil {
 				return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: true, Reason: approvalDecision.Reason}, err
 			}
-			return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: true, Reason: approvalDecision.Reason}, nil
+			return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: true, Reason: approvalDecision.Reason}, fmt.Errorf("request %q requires explicit approval and runtime authorization", cleanRequestID)
 		}
 	}
 	if err != nil {
 		return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: decision.ApprovalRequired, Reason: decision.Reason}, err
+	}
+	if !decision.Allowed {
+		return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: decision.ApprovalRequired, Reason: decision.Reason}, fmt.Errorf("request %q is not authorized: %s", cleanRequestID, decision.Reason)
 	}
 	if p == nil || p.Registry == nil {
 		return Result{RequestID: cleanRequestID, Allowed: false, ApprovalRequired: false, Reason: "provider registry is not configured"}, fmt.Errorf("provider registry is not configured")

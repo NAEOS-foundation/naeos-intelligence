@@ -72,6 +72,37 @@ func TestMissingBearerTokenRejected(t *testing.T) {
 	}
 }
 
+func TestSupabaseSubjectOwnsIntelligenceRequestsNotClientID(t *testing.T) {
+	store := NewMemoryStore()
+	principal := Principal{
+		Issuer:   "https://issuer.test",
+		Subject:  "user-123",
+		ClientID: "crm-web-client",
+		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+	}
+	auth := Authenticator{Verifier: fakeVerifier{principal: principal}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
+
+	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"test canonical owner","execution_mode":"analysis_only"}`)
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("submit status=%d, want 202: %s", rec.Code, rec.Body.String())
+	}
+
+	var accepted Accepted
+	if err := json.Unmarshal(rec.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted response: %v", err)
+	}
+	if _, err := store.Get(context.Background(), principal.OwnerID(), accepted.RequestID); err != nil {
+		t.Fatalf("request should be owned by issuer-qualified subject: %v", err)
+	}
+	if _, err := store.Get(context.Background(), principal.ClientID, accepted.RequestID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("client_id must not be treated as the human subject owner; err=%v", err)
+	}
+}
+
 func TestInsufficientScopeRejected(t *testing.T) {
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
@@ -142,14 +173,13 @@ func TestMemoryStoreTracksApprovalDecisionForGovernedRequest(t *testing.T) {
 
 func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	store := NewMemoryStore()
-	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
-		ClientID: "client-a",
-		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
-	}}}
+	principal := Principal{Issuer: "https://issuer.test", Subject: "alice-subject", ClientID: "client-a",
+		Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true, "intelligence:approve": true}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: principal}}
 	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
 
 	// Create a governed request that requires approval
-	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
+	req, _, err := store.Create(context.Background(), principal.OwnerID(), "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")
 	if err != nil {
 		t.Fatalf("create error: %v", err)
 	}
@@ -158,7 +188,7 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	}
 
 	// Record an approval decision
-	body := `{"decision":"approved","approved_by":"alice","reason":"risk assessed"}`
+	body := `{"decision":"approved","approved_by":"forged-client-value","reason":"risk assessed"}`
 	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), body)
 	r.Header.Set("Authorization", "Bearer fake")
 	rec := httptest.NewRecorder()
@@ -173,19 +203,23 @@ func TestApprovalEndpointRecordsDecision(t *testing.T) {
 	if decision.Decision != "approved" {
 		t.Fatalf("decision=%q, want approved", decision.Decision)
 	}
-	if decision.ApprovedBy != "alice" {
-		t.Fatalf("approved_by=%q, want alice", decision.ApprovedBy)
+	if decision.ApprovedBy != principal.OwnerID() {
+		t.Fatalf("approved_by=%q, want issuer-qualified verified identity %q", decision.ApprovedBy, principal.OwnerID())
 	}
 	if decision.RequestID != req.RequestID {
 		t.Fatalf("request_id=%q, want %q", decision.RequestID, req.RequestID)
+	}
+	updated, err := store.Get(context.Background(), principal.OwnerID(), req.RequestID)
+	if err != nil || updated.Status != StatusQueued || updated.ApprovalRequired {
+		t.Fatalf("approved request should be queued with approval_required=false: %+v err=%v", updated, err)
 	}
 }
 
 func TestApprovalEndpointRejectsInvalidDecision(t *testing.T) {
 	store := NewMemoryStore()
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
-		ClientID: "client-a",
-		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+		Issuer: "https://issuer.test", Subject: "alice-subject", ClientID: "client-a",
+		Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true, "intelligence:approve": true},
 	}}}
 	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
 
@@ -208,8 +242,8 @@ func TestApprovalEndpointRejectsInvalidDecision(t *testing.T) {
 func TestApprovalEndpointMissingDecision(t *testing.T) {
 	store := NewMemoryStore()
 	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{
-		ClientID: "client-a",
-		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+		Issuer: "https://issuer.test", Subject: "alice-subject", ClientID: "client-a",
+		Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true, "intelligence:approve": true},
 	}}}
 	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
 
@@ -228,11 +262,27 @@ func TestApprovalEndpointMissingDecision(t *testing.T) {
 	}
 }
 
+func TestApprovalEndpointRejectsClientSuppliedApproverIdentity(t *testing.T) {
+	store := NewMemoryStore()
+	principal := Principal{ClientID: "legacy-client", Scopes: map[string]bool{"intelligence:approve": true}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: principal}}
+	h := NewHandler(store, auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
+	req, _, err := store.Create(context.Background(), "legacy-client", "", RequestInput{Purpose: "governed operation", ExecutionMode: "governed"}, "corr")
+	if err != nil { t.Fatal(err) }
+	r := jsonRequest(http.MethodPost, fmt.Sprintf("/api/v1/intelligence/requests/%s/approval", req.RequestID), `{"decision":"approved","approved_by":"spoofed-user"}`)
+	r.Header.Set("Authorization", "Bearer fake")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status=%d want 403: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestApprovalEndpointCrossClientRejected(t *testing.T) {
 	store := NewMemoryStore()
 	authB := Authenticator{Verifier: fakeVerifier{principal: Principal{
-		ClientID: "client-b",
-		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
+		Issuer: "https://issuer.test", Subject: "bob-subject", ClientID: "client-b",
+		Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true, "intelligence:approve": true},
 	}}}
 
 	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "perform mutation", ExecutionMode: "governed"}, "corr-1")

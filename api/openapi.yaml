@@ -163,9 +163,9 @@ paths:
       - $ref: "#/components/parameters/RequestIDPath"
     post:
       operationId: recordApprovalDecision
-      summary: Record an approval decision for a request
+      summary: Record an approval decision for a governed request; requires intelligence:approve scope and a verified human subject
       security:
-        - bearerAuth: [intelligence:write]
+        - bearerAuth: [intelligence:approve]
       requestBody:
         required: true
         content:
@@ -187,6 +187,9 @@ paths:
         "404":
           $ref: "#/components/responses/Problem"
           description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "409":
+          $ref: "#/components/responses/Problem"
+          description: CONFLICT — approval is not valid for the current request state
         "429":
           $ref: "#/components/responses/Problem"
           description: RATE_LIMITED — too many requests; please slow down
@@ -222,6 +225,9 @@ paths:
         "404":
           $ref: "#/components/responses/Problem"
           description: RESOURCE_NOT_FOUND — request does not exist or is not accessible to the client
+        "409":
+          $ref: "#/components/responses/Problem"
+          description: EXECUTION_NOT_AUTHORIZED — governed requests cannot run through the analysis endpoint
         "429":
           $ref: "#/components/responses/Problem"
           description: RATE_LIMITED — too many requests; please slow down
@@ -280,7 +286,7 @@ components:
             properties:
               type: { type: string, minLength: 1, maxLength: 64 }
               reference: { type: string, minLength: 1, maxLength: 1024 }
-        execution_mode: { type: string, const: analysis_only }
+        execution_mode: { type: string, enum: [analysis_only, governed] }
         desired_outputs:
           type: array
           maxItems: 50
@@ -307,7 +313,7 @@ components:
         request_id: { type: string }
         status: { $ref: "#/components/schemas/Status" }
         purpose: { type: string }
-        execution_mode: { type: string, const: analysis_only }
+        execution_mode: { type: string, enum: [analysis_only, governed] }
         approval_required: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -325,7 +331,7 @@ components:
       required: [decision]
       properties:
         decision: { type: string, enum: [approved, denied, rejected] }
-        approved_by: { type: string, maxLength: 256 }
+        approved_by: { type: string, maxLength: 256, deprecated: true, description: "Ignored by the server; approver identity is derived from the verified JWT subject." }
         reason: { type: string, maxLength: 1000 }
     ApprovalDecisionResponse:
       type: object

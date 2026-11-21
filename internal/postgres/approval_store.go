@@ -18,6 +18,9 @@ import (
 func (s *Store) RecordApprovalDecision(ctx context.Context, clientID, requestID, decision, approvedBy, reason string) (governance.ApprovalDecision, error) {
 	clientID = strings.TrimSpace(clientID)
 	decision = strings.ToLower(strings.TrimSpace(decision))
+	if decision == "denied" {
+		decision = "rejected"
+	}
 	approvedBy = strings.TrimSpace(approvedBy)
 	reason = strings.TrimSpace(reason)
 	if clientID == "" || len(clientID) > 255 {
