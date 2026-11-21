@@ -12,12 +12,14 @@ import (
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/config"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/github"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/classifier"
 	intctx "github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/context"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/orchestrator"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/intelligence/planner"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/model"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/naeoscore"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
@@ -51,7 +53,15 @@ func run() error {
 	limiter := ratelimit.NewLimiter(cfg.RateLimit.Rate, cfg.RateLimit.Burst)
 
 	cl := classifier.NewRuleClassifier()
-	cb := intctx.NewRuleBuilder()
+	coreClient := naeoscore.NewClient(os.Getenv("NAEOS_CORE_SERVICE_TOKEN"), "naeos-intelligence")
+	if cfg.Core.BaseURL != "" {
+		coreClient.SetBaseURL(cfg.Core.BaseURL)
+	}
+	githubClient := github.NewClient(os.Getenv("GITHUB_TOKEN"), "naeos-intelligence")
+	cb := intctx.NewRuleBuilder(intctx.WithResolver(intctx.SourceResolverSet{
+		"naeos-core": naeoscore.NewCoreSourceResolver(coreClient),
+		"repository": github.NewGitHubSourceResolver(githubClient),
+	}))
 	pl := planner.NewRulePlanner()
 	reg := model.NewRegistry()
 	tr := tool.NewRegistry()

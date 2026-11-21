@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	gov "github.com/NAEOS-foundation/naeos-intelligence/internal/governance"
 )
 
 type Status string
@@ -63,27 +61,9 @@ type CancellationAccepted struct {
 	Message   string `json:"message"`
 }
 
-type ApprovalDecisionInput struct {
-	Decision   string `json:"decision"`
-	ApprovedBy string `json:"approved_by,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-}
-
-type ApprovalDecisionResponse struct {
-	RequestID        string    `json:"request_id"`
-	Action           string    `json:"action"`
-	ExecutionMode    string    `json:"execution_mode"`
-	Decision         string    `json:"decision"`
-	ApprovedBy       string    `json:"approved_by,omitempty"`
-	Reason           string    `json:"reason,omitempty"`
-	ApprovalRequired bool      `json:"approval_required"`
-	CreatedAt        time.Time `json:"created_at"`
-}
-
 type Store interface {
 	Create(ctx context.Context, clientID, idempotencyKey string, input RequestInput, correlationID string) (Request, bool, error)
 	Get(ctx context.Context, clientID, requestID string) (Request, error)
 	Cancel(ctx context.Context, clientID, requestID, correlationID string) (Request, error)
 	Ping(ctx context.Context) error
-	RecordApprovalDecision(ctx context.Context, clientID, requestID, decision, approvedBy, reason string) (gov.ApprovalDecision, error)
 }

@@ -1,7 +1,7 @@
 # NAEOS Intelligence — Threat Model
 
 **Document ID:** NAEOS-INT-SEC-001  
-**Version:** 1.0.0  
+**Version:** 1.1.0
 **Status:** Accepted  
 **Audience:** Maintainers, architects, security reviewers, and contributors
 
@@ -71,6 +71,10 @@ The following assumptions apply to the initial threat model:
 10. Authorization must be enforced by application controls, not by prompts.
 
 These assumptions MUST be revisited before production deployment.
+
+### MVP tenancy assumption
+
+Per accepted ADR-0003, each MVP deployment is assumed to represent one logical tenant. The MVP does not accept tenant identity from request headers or request bodies and does not support a shared multi-tenant deployment. This assumption is not enforced by the runtime or validated deployment controls. Existing client-scoped resource checks remain in force; the token claim-to-client mapping is still provisional. Production tenant-isolation claims require trusted issuer/client onboarding and deployment separation to be validated. If shared tenancy is introduced, the threat model, identity binding, persistence controls, and cross-tenant tests MUST be reviewed before implementation.
 
 ## 5. Trust Boundaries
 
@@ -603,6 +607,8 @@ The following controls are required before enabling governed tool execution:
 
 The initial read-only Engineering Intelligence capability SHOULD be delivered before enabling consequential execution.
 
+The single-tenant-per-deployment MVP boundary does not establish partner-specific deployment isolation or production IAM readiness; those controls require deployment review.
+
 ## 10. Security Testing
 
 The security test suite SHOULD include:
@@ -670,7 +676,7 @@ The process SHOULD include:
 The following decisions remain open:
 
 - Authentication mechanism.
-- Tenant isolation model.
+- Shared tenant isolation model for any future multi-tenant deployment.
 - Policy engine technology.
 - Authorization artifact integrity mechanism.
 - Approval identity provider.
