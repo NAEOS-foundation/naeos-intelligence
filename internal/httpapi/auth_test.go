@@ -40,7 +40,7 @@ func TestPrincipalOwnerIDEncodingAvoidsIssuerSubjectCollisions(t *testing.T) {
 
 func TestPrincipalOwnerIDPreservesOpaqueWhitespaceBytes(t *testing.T) {
 	principal := Principal{Issuer: " https://issuer.test ", Subject: " user-123 "}
-	if got, want := principal.OwnerID(), "user:"+base64.RawURLEncoding.EncodeToString([]byte("https://issuer.test"))+":"+base64.RawURLEncoding.EncodeToString([]byte("user-123")); got != want {
+	if got, want := principal.OwnerID(), "user:"+base64.RawURLEncoding.EncodeToString([]byte(" https://issuer.test "))+":"+base64.RawURLEncoding.EncodeToString([]byte(" user-123 ")); got != want {
 		t.Fatalf("OwnerID()=%q, want canonical tuple %q", got, want)
 	}
 }
