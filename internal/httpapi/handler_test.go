@@ -452,7 +452,7 @@ func TestHTTPClientOwnershipIsolationAndIdempotencyScope(t *testing.T) {
 
 func TestCancelCompletedRequestReturnsContractConflict(t *testing.T) {
 	store := NewMemoryStore()
-	req, _, err := store.Create(context.Background(), "client-a", "", RequestInput{Purpose: "terminal state", ExecutionMode: "analysis_only"}, "corr")
+	req, _, err := store.Create(context.Background(), (Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a"}).OwnerID(), "", RequestInput{Purpose: "terminal state", ExecutionMode: "analysis_only"}, "corr")
 	if err != nil {
 		t.Fatal(err)
 	}
