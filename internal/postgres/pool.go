@@ -27,6 +27,7 @@ func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		cfg.ConnConfig.RuntimeParams = make(map[string]string)
 	}
 	cfg.ConnConfig.RuntimeParams["search_path"] = intelligenceSearchPath
+	cfg.ConnConfig.RuntimeParams["role"] = runtimeGroupRole
 	cfg.MaxConns = 12
 	cfg.MinConns = 0
 	cfg.MaxConnLifetime = 30 * time.Minute
@@ -127,7 +128,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("verify PostgreSQL runtime role contract: %w", err)
 	}
-	if sessionUser != runtimeLoginRole || currentUser != runtimeLoginRole ||
+	if sessionUser != runtimeLoginRole || currentUser != runtimeGroupRole ||
 		!loginCanLogin || loginSuper || loginCreateDB || loginCreateRole || loginBypass || !loginInherit ||
 		!isMember || membershipCount != 1 ||
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
