@@ -92,3 +92,21 @@ Test cases must map to requirement IDs and produce retained CI evidence.
 | IAM-01 | Accepted: Supabase Auth session access JWT; RS256 only | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
 | IAM-02 | Accepted: `naeos-crm-production` Supabase Auth project (`oruykkehukoiipldzcvc`, Singapore) is the IdP; `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
 | IAM-03 through IAM-14 | Open — remain gated | Project selected; remaining issuer/audience, principal, tenant, authorization, validation, lifecycle, propagation, denial, and audit decisions still required | Pending |
+
+
+## Ratification amendment — 2026-11-22 (single-maintainer)
+
+**Decision status:** IAM-03 through IAM-05, IAM-10/11/14 baseline decisions ratified by the sole maintainer on 2026-11-22, following explicit user approval in the ChatGPT conversation. This recorded self-approval is not independent security review.
+
+- **Canonical human principal:** validated `iss + sub`; issuer namespace prevents collision.
+- **Actor/client/service distinction:** OAuth `client_id` remains separate; service identities explicitly typed; no fallback from `sub` to client ID.
+- **Capability registry:** server-controlled registry/grant state only; deny-by-default; generic authenticated role/user metadata cannot grant NAEOS capabilities.
+- **Revocation:** authoritative session/version lookup selected; lookup error/timeout/indeterminate state fail closed. Store/key, cache/consistency, propagation target, and recovery details remain implementation design gates.
+- **Human token lifetime:** maximum `exp - iat` 900 seconds (15 minutes) for the specified human token profile; service token profile separately governed. Actual issuer configuration compatibility must be verified, not assumed.
+- **Core repository metadata:** shared platform integration resource, read-only, authorized service principal, explicit platform allowlist; explicitly not tenant-isolated. This does not alter Intelligence ADR-0003 single-logical-tenant-per-deployment or ADR-0004 read-only scopes/server-side ownership.
+
+**Governance disclosure:** Sole-maintainer review; independent reviewer unavailable. Compensating assurance: threat-model checklist, requirement-mapped negative tests, CI gates, side-effect verification, and audit evidence. **Implementation authorization:** incremental non-production implementation is authorized. Staging requires separate explicit authorization. Production is not authorized and remains untouched.
+
+**Evidence:** explicit user approval in ChatGPT conversation, 2026-11-22. Git ADR/PR evidence is to be linked once created.
+
+**Decision register reconciliation:** supersedes the worksheet's earlier pending wording for IAM-03–05, IAM-10/11, and IAM-14. IAM-06/07 and IAM-08/09, IAM-12/13 remain as previously accepted/deferred within their documented scope.
