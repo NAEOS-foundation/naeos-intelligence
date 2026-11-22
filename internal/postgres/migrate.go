@@ -108,7 +108,7 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("verify PostgreSQL migrator role contract: %w", err)
 	}
-	if sessionUser != migratorLoginRole || currentUser != migratorGroupRole ||
+	if sessionUser != migratorLoginRole || currentUser != migratorLoginRole ||
 		!loginCanLogin || loginSuper || loginCreateDB || loginCreateRole || loginBypass || !loginInherit ||
 		!isMember || membershipCount != 1 ||
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
