@@ -67,8 +67,8 @@ jobs:
       - name: Validate Docker Compose network and database role boundaries
         run: |
           set -euo pipefail
-          docker compose config --quiet
-          docker compose config --format json > "${RUNNER_TEMP}/compose.json"
+          docker compose --profile migrate config --quiet
+          docker compose --profile migrate config --format json > "${RUNNER_TEMP}/compose.json"
           jq '
             def envkeys($service):
               (.services[$service].environment // {}) as $env
