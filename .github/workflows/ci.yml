@@ -79,6 +79,9 @@ jobs:
           if-no-files-found: error
       - name: Download modules
         run: go mod download
+      - name: Provision isolated test schema
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE SCHEMA naeos_intelligence;'
       - name: Regenerate and verify third-party notices
         run: |
           python3 scripts/generate-third-party-notices.py
