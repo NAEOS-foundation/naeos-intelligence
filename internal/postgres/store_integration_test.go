@@ -67,6 +67,16 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	if replay || first.Status != httpapi.StatusAccepted {
 		t.Fatalf("first create replay=%v status=%s", replay, first.Status)
 	}
+	for _, query := range []string{
+		"UPDATE intelligence_requests SET payload=payload WHERE id=$1::uuid",
+		"UPDATE intelligence_requests SET client_id=client_id WHERE id=$1::uuid",
+		"UPDATE intelligence_requests SET idempotency_key=idempotency_key WHERE id=$1::uuid",
+		"UPDATE intelligence_requests SET payload_digest=payload_digest WHERE id=$1::uuid",
+	} {
+		if _, err := pool.Exec(ctx, query, first.RequestID); !isPermissionDenied(err) {
+			t.Fatalf("runtime must not mutate immutable request column with %q, got %v", query, err)
+		}
+	}
 
 	// FORCE RLS must hide owner rows when the transaction-local owner context
 	// is absent, even though the runtime role has table-level SELECT.
