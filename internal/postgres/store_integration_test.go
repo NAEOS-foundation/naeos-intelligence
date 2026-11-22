@@ -99,6 +99,18 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 		t.Fatalf("open admin verification pool: %v", err)
 	}
 	defer adminPool.Close()
+	var publicRequestAbsent, schemaRequestPresent, publicLedgerAbsent, schemaLedgerPresent bool
+	if err := adminPool.QueryRow(ctx, `
+		SELECT to_regclass('public.intelligence_requests') IS NULL,
+		       to_regclass('naeos_intelligence.intelligence_requests') IS NOT NULL,
+		       to_regclass('public.goose_db_version') IS NULL,
+		       to_regclass('naeos_intelligence.goose_db_version') IS NOT NULL
+	`).Scan(&publicRequestAbsent, &schemaRequestPresent, &publicLedgerAbsent, &schemaLedgerPresent); err != nil {
+		t.Fatalf("inspect schema placement: %v", err)
+	}
+	if !publicRequestAbsent || !schemaRequestPresent || !publicLedgerAbsent || !schemaLedgerPresent {
+		t.Fatalf("schema isolation failed: public request absent=%v schema request present=%v public ledger absent=%v schema ledger present=%v", publicRequestAbsent, schemaRequestPresent, publicLedgerAbsent, schemaLedgerPresent)
+	}
 	for _, query := range []string{
 		"SELECT * FROM public.crm_guard_test",
 		"SELECT * FROM naeos_control_plane.guard_test",
