@@ -11,9 +11,9 @@ Implements durable requests, owner-scoped idempotency, append-only transitions, 
 
 - PostgreSQL adapter uses pgx v5 and a bounded pool (max 12 connections; bounded connection lifetime and idle time).
 - All Intelligence persistence and the Goose version ledger are isolated in the naeos_intelligence schema; public remains reserved for CRM staging.
-- DATABASE_URL is the dedicated runtime login. Startup verifies role membership, schema ownership, search_path, RLS context and exact table privileges; it rejects superuser/BYPASSRLS, public/CRM/Control Plane/Identity access, and migration-ledger access.
+- DATABASE_URL is the dedicated runtime login. Startup verifies role membership, schema ownership, search_path, RLS context and exact table privileges; it rejects superuser/BYPASSRLS, public schema CREATE, CRM/Control Plane/Identity table and sequence access, externally executable SECURITY DEFINER functions, and migration-ledger access.
 - MIGRATOR_DATABASE_URL is required by the separate migration command. It must authenticate as a dedicated login member of the schema-scoped migrator group. The migration command rejects a legacy public.goose_db_version ledger rather than silently rerunning migrations.
-- Request ownership is set transaction-locally through naeos.owner_id. RLS policies enforce owner scope for requests, transitions, and audit events.
+- Request ownership is set transaction-locally through naeos.owner_id. RLS policies enforce owner scope for requests, transitions, and audit events as defense in depth against missing owner predicates. This custom GUC is set by the trusted API after JWT verification; it is not an independent boundary against a compromised runtime credential or arbitrary SQL execution.
 - The API runtime has no privileges on request_attempts or approval_decisions until separate worker/approval principals and authorization contracts are implemented.
 - Request creation, idempotency conflict/replay resolution, and initial transition event are transactionally coupled.
 - Cancellation serializes on the request row and records the lifecycle event within the same transaction.
