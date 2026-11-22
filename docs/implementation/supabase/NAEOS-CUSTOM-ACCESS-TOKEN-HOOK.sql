@@ -11,7 +11,7 @@ returns jsonb
 language plpgsql
 stable
 set search_path = ''
-as $
+as $$
 declare
   claims jsonb;
   requested_scopes jsonb;
