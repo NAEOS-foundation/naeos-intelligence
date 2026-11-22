@@ -97,7 +97,6 @@ jobs:
           [[ "$roles_ok" == "t" ]] || { echo "Role privilege assertion failed"; exit 1; }
           schema_owner=$(psql "$DATABASE_ADMIN_URL" -tA -v ON_ERROR_STOP=1 -c "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='naeos_intelligence'")
           [[ "$schema_owner" == "naeos_intelligence_migrator" ]] || { echo "Schema owner assertion failed: $schema_owner"; exit 1; }
-L
       - name: Regenerate and verify third-party notices
         run: |
           python3 scripts/generate-third-party-notices.py
