@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
 
-: "${RUNTIME_DB_PASSWORD:=naeos_runtime_dev_only}"
-: "${MIGRATOR_DB_PASSWORD:=naeos_migrator_dev_only}"
+: "${RUNTIME_DB_PASSWORD:=run_dev}"
+: "${MIGRATOR_DB_PASSWORD:=mig_dev}"
+: "${ROLE_BOOTSTRAP_SQL_FILE:=/docker-entrypoint-initdb.d/02-runtime-migrator-roles.sql.in}"
 
 psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   --set runtime_password="$RUNTIME_DB_PASSWORD" \
