@@ -146,8 +146,8 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 	}
 	// IAM-04/05: Supabase Auth human-user identity is the verified issuer
 	// namespace plus subject. Do not substitute OAuth client_id for sub:
-	// they represent different identity domains. ClientID is retained in the
-	// existing API model as the ownership key, but is populated only from sub.
+	// they represent different identity domains. ClientID is retained
+	// separately and is populated only from the client_id claim.
 	if strings.TrimSpace(claims.Subject) == "" {
 		return Principal{}, errors.New("JWT has no subject identity")
 	}
