@@ -54,5 +54,8 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 	if err := goose.UpContext(ctx, conn, migrationsDir); err != nil {
 		return fmt.Errorf("apply migrations in schema %q: %w", intelligenceSchema, err)
 	}
+	if _, err := conn.ExecContext(ctx, "REVOKE ALL ON TABLE "+intelligenceSchema+".goose_db_version FROM "+runtimeRole); err != nil {
+		return fmt.Errorf("revoke runtime access to migration ledger: %w", err)
+	}
 	return nil
 }
