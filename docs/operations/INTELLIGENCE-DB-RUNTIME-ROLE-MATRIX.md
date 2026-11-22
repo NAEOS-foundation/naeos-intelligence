@@ -30,7 +30,7 @@
 - Prior catalog inventory showed broad direct ACLs to `anon` and `authenticated` on most CRM `public` tables. RLS and grants must be reviewed together; do not mass-revoke without application dependency and negative/positive test evidence.
 - Security advisor finding remediation reference: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
 
-**Placement and domain conclusion:** ADR-005 names `naeos.db` as the Intelligence database and `naeos-crm-production` as the hosted Auth IdP. The fact that the CRM project lacks Intelligence schemas is therefore not itself evidence of a deployment defect; it is consistent with the ADR's currently recorded split-project placement. Any proposed unified move of Intelligence persistence/control-plane data into CRM production would conflict with ADR-005's current placement statement and must be captured in a separately approved architecture decision before implementation. `naeos.db` is not approved as unrestricted/general staging. This audit did not inspect or alter data, roles, grants, migrations, or secrets.
+**Historical placement conclusion (2026-11-16; superseded by the 2026-11-22 staging audit):** The prior audit treated `naeos.db` as an Intelligence-only project. Current read-only catalog evidence shows that `naeos.db` is shared staging for CRM, Control Plane, and Identity; it does not contain the Intelligence Goose tables. The target schema and connection boundary must be explicitly decided before implementation. No production project was inspected or changed.
 
 ## 3. Proposed identities
 
