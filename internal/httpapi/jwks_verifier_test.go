@@ -223,6 +223,7 @@ func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 		{name: "wrong issuer", mutate: func(c map[string]any) { c["iss"] = "https://attacker.test" }},
 		{name: "wrong audience", mutate: func(c map[string]any) { c["aud"] = []string{"other-api"} }},
 		{name: "missing identity", mutate: func(c map[string]any) { delete(c, "sub") }},
+		{name: "client_id cannot replace subject", mutate: func(c map[string]any) { c["client_id"] = "service-client"; delete(c, "sub") }},
 		{name: "blank identity", mutate: func(c map[string]any) { c["sub"] = "  " }},
 		{name: "malformed not-before", mutate: func(c map[string]any) { c["nbf"] = "not-a-timestamp" }},
 	}
