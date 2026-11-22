@@ -22,6 +22,7 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 		cfg.RuntimeParams = make(map[string]string)
 	}
 	cfg.RuntimeParams["search_path"] = intelligenceSearchPath
+	cfg.RuntimeParams["role"] = migratorGroupRole
 	conn := stdlib.OpenDB(*cfg)
 	defer conn.Close()
 	conn.SetMaxOpenConns(1)
@@ -108,7 +109,7 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("verify PostgreSQL migrator role contract: %w", err)
 	}
-	if sessionUser != migratorLoginRole || currentUser != migratorLoginRole ||
+	if sessionUser != migratorLoginRole || currentUser != migratorGroupRole ||
 		!loginCanLogin || loginSuper || loginCreateDB || loginCreateRole || loginBypass || !loginInherit ||
 		!isMember || membershipCount != 1 ||
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
