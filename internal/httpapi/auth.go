@@ -2,13 +2,33 @@ package httpapi
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"strings"
 )
 
 type Principal struct {
+	// Issuer and Subject form the canonical human identity. OAuth client identity
+	// remains separate and is never substituted for a missing human subject.
+	Issuer   string
+	Subject  string
 	ClientID string
 	Scopes   map[string]bool
+}
+
+// OwnerID returns a stable, issuer-qualified storage owner key. The existing
+// persistence column is retained for compatibility; it stores this opaque key,
+// not the OAuth client_id claim. Human-only identity is required in this phase.
+func (p Principal) OwnerID() string {
+	if strings.TrimSpace(p.Issuer) == "" || strings.TrimSpace(p.Subject) == "" {
+		return ""
+	}
+	owner := "user:" + base64.RawURLEncoding.EncodeToString([]byte(p.Issuer)) + ":" +
+		base64.RawURLEncoding.EncodeToString([]byte(p.Subject))
+	if len(owner) > 255 {
+		return ""
+	}
+	return owner
 }
 
 type principalKey struct{}
@@ -19,7 +39,7 @@ func withPrincipal(ctx context.Context, principal Principal) context.Context {
 
 func principalFrom(ctx context.Context) (Principal, bool) {
 	p, ok := ctx.Value(principalKey{}).(Principal)
-	return p, ok && p.ClientID != ""
+	return p, ok && p.OwnerID() != ""
 }
 
 // TokenVerifier is the replaceable JWT verification boundary. Implementations
@@ -43,7 +63,7 @@ func (a Authenticator) Middleware(requiredScope string, next http.Handler) http.
 			return
 		}
 		principal, err := a.Verifier.Verify(r.Context(), strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")))
-		if err != nil || principal.ClientID == "" {
+		if err != nil || principal.OwnerID() == "" {
 			writeProblem(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Bearer token is invalid")
 			return
 		}
