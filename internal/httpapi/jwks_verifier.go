@@ -92,6 +92,9 @@ func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
 }
 
 func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, error) {
+	if token == "" || len(token) > maxJWTBytes {
+		return Principal{}, errors.New("JWT is empty or exceeds the maximum token size")
+	}
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return Principal{}, errors.New("malformed JWT")
