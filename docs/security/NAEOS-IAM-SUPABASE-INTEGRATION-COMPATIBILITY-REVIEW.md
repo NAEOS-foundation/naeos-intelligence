@@ -9,6 +9,12 @@
 
 This document is a historical static review of the 2026-11-11 implementation. PR #80 and the 2026-11-22 amendment to ADR-0004 implement the human-session identity decision: verified `iss + sub` is the canonical principal, OAuth `client_id` is separate, and resource ownership derives from the issuer-qualified human owner key. The earlier IAM-04/05/09 decision blockers are resolved for this bounded API phase, subject to PR #80 final review and merge. IAM-03, IAM-08, IAM-10/11, and IAM-14 remain open; production activation remains blocked.
 
+## Status update — 2026-11-22 (Phase 2 candidate)
+
+The Phase 2 candidate branch `feat/iam-02-es256-trusted-scopes-v1` carries the accepted ES256-only verifier and dedicated `naeos_scopes` capability policy forward from the earlier PR #78 implementation, while preserving the canonical `iss + sub` principal and server-derived owner key from PR #80. It deliberately does not carry the older approval route or use `sub` as `Principal.ClientID`.
+
+The repository SQL hook is reference-only. It has not been enabled in Supabase Dashboard, and no live token/JWKS metadata has been captured. Therefore issuer/audience and signing-key evidence, hook activation, and end-to-end capability claim evidence remain **BLOCKED** pending safe metadata verification. The candidate does not implement maximum `exp - iat` lifetime enforcement or authoritative online session/version revocation; those remain IAM-10/11 gates. No Supabase project, database, secret, RLS, grant, or production configuration was changed.
+
 ## 1. Executive finding
 
 The current verifier can validate an RS256 JWT against a configured JWKS and checks issuer, audience, expiry, and not-before. However, the current principal model is not yet a safe, fully specified mapping for Supabase Auth human-user sessions.
