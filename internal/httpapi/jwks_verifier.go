@@ -2,8 +2,8 @@ package httpapi
 
 import (
 	"context"
-	"crypto"
-	"crypto/rsa"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -20,6 +20,7 @@ import (
 const (
 	jwksCacheTTL = 5 * time.Minute
 	maxJWKSBytes = 1 << 20
+	jwtClockSkew = 60 * time.Second
 )
 
 type JWKSVerifier struct {
@@ -28,7 +29,7 @@ type JWKSVerifier struct {
 	jwksURL   string
 	client    *http.Client
 	mu        sync.Mutex
-	keys      map[string]*rsa.PublicKey
+	keys      map[string]*ecdsa.PublicKey
 	fetchedAt time.Time
 }
 
@@ -37,17 +38,21 @@ type jwksDocument struct {
 }
 
 type jwk struct {
-	Kty string `json:"kty"`
-	Use string `json:"use"`
-	Alg string `json:"alg"`
-	Kid string `json:"kid"`
-	N   string `json:"n"`
-	E   string `json:"e"`
+	Kty     string   `json:"kty"`
+	Use     string   `json:"use"`
+	Alg     string   `json:"alg"`
+	Kid     string   `json:"kid"`
+	Crv     string   `json:"crv"`
+	X       string   `json:"x"`
+	Y       string   `json:"y"`
+	KeyOps  []string `json:"key_ops"`
 }
 
 type jwtHeader struct {
-	Alg string `json:"alg"`
-	Kid string `json:"kid"`
+	Alg  string   `json:"alg"`
+	Kid  string   `json:"kid"`
+	Crit []string `json:"crit"`
+	B64  *bool    `json:"b64"`
 }
 
 type jwtClaims struct {
@@ -56,9 +61,9 @@ type jwtClaims struct {
 	ClientID  string          `json:"client_id"`
 	Audience  json.RawMessage `json:"aud"`
 	Expires   int64           `json:"exp"`
+	IssuedAt  int64           `json:"iat"`
 	NotBefore int64           `json:"nbf"`
-	Scope     string          `json:"scope"`
-	Scopes    []string        `json:"scopes"`
+	NAEOSScopes []string        `json:"naeos_scopes"`
 }
 
 func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
@@ -71,11 +76,18 @@ func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
 	if !strings.HasPrefix(issuer, "https://") || !strings.HasPrefix(jwksURL, "https://") {
 		return nil, errors.New("JWT issuer and JWKS URL must use HTTPS")
 	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 || len(via) == 0 || req.URL.Scheme != "https" || !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
 	return &JWKSVerifier{
 		issuer:   issuer,
 		audience: audience,
 		jwksURL:  jwksURL,
-		client:   &http.Client{Timeout: 5 * time.Second},
+		client:   client,
 	}, nil
 }
 
@@ -89,7 +101,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		return Principal{}, errors.New("malformed JWT header")
 	}
 	var header jwtHeader
-	if err := json.Unmarshal(headerBytes, &header); err != nil || header.Alg != "RS256" || header.Kid == "" {
+	if err := json.Unmarshal(headerBytes, &header); err != nil || header.Alg != "ES256" || header.Kid == "" || len(header.Crit) != 0 || (header.B64 != nil && !*header.B64) {
 		return Principal{}, errors.New("unsupported JWT header")
 	}
 	key, err := v.key(ctx, header.Kid)
@@ -97,11 +109,16 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		return Principal{}, err
 	}
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return Principal{}, errors.New("malformed JWT signature")
+	if err != nil || len(signature) != 64 {
+		return Principal{}, errors.New("malformed ES256 JWT signature")
+	}
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:])
+	if r.Sign() <= 0 || s.Sign() <= 0 || r.Cmp(key.Curve.Params().N) >= 0 || s.Cmp(key.Curve.Params().N) >= 0 {
+		return Principal{}, errors.New("invalid ES256 JWT signature")
 	}
 	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
-	if err := rsa.VerifyPKCS1v15(key, crypto.SHA256, digest[:], signature); err != nil {
+	if !ecdsa.Verify(key, digest[:], r, s) {
 		return Principal{}, errors.New("invalid JWT signature")
 	}
 	claimBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
@@ -112,23 +129,36 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 	if err := json.Unmarshal(claimBytes, &claims); err != nil {
 		return Principal{}, errors.New("malformed JWT claims")
 	}
-	now := time.Now().Unix()
+	now := time.Now()
+	nowUnix := now.Unix()
+	skew := int64(jwtClockSkew.Seconds())
 	if claims.Issuer != v.issuer ||
 		!audienceContains(claims.Audience, v.audience) ||
-		claims.Expires <= now ||
-		(claims.NotBefore != 0 && claims.NotBefore > now) {
+		claims.Subject == "" ||
+		claims.Expires == 0 ||
+		claims.IssuedAt == 0 ||
+		claims.Expires <= nowUnix-skew ||
+		claims.IssuedAt > nowUnix+skew ||
+		claims.IssuedAt >= claims.Expires ||
+		(claims.NotBefore != 0 && claims.NotBefore > nowUnix+skew) ||
+		(claims.NotBefore != 0 && claims.NotBefore >= claims.Expires) {
 		return Principal{}, errors.New("JWT claims failed validation")
 	}
+	// IAM-04/05: Supabase Auth human-user identity is the verified issuer
+	// namespace plus subject. Do not substitute OAuth client_id for sub:
+	// they represent different identity domains. ClientID is retained in the
+	// existing API model as the ownership key, but is populated only from sub.
 	if strings.TrimSpace(claims.Subject) == "" {
-		return Principal{}, errors.New("JWT has no human subject identity")
+		return Principal{}, errors.New("JWT has no subject identity")
 	}
 	clientID := strings.TrimSpace(claims.ClientID)
 	scopes := make(map[string]bool)
-	for _, scope := range strings.Fields(claims.Scope) {
-		scopes[scope] = true
-	}
-	for _, scope := range claims.Scopes {
-		if strings.TrimSpace(scope) != "" {
+	// IAM-08: accept only the dedicated capability claim produced by the
+	// configured server-controlled Supabase Auth hook. Generic scope/scopes
+	// claims and user_metadata are not authorization sources.
+	for _, scope := range claims.NAEOSScopes {
+		switch strings.TrimSpace(scope) {
+		case "intelligence:read", "intelligence:write":
 			scopes[strings.TrimSpace(scope)] = true
 		}
 	}
@@ -151,7 +181,7 @@ func audienceContains(raw json.RawMessage, expected string) bool {
 	return false
 }
 
-func (v *JWKSVerifier) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
+func (v *JWKSVerifier) key(ctx context.Context, kid string) (*ecdsa.PublicKey, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if time.Since(v.fetchedAt) < jwksCacheTTL && v.keys != nil {
@@ -181,34 +211,47 @@ func (v *JWKSVerifier) key(ctx context.Context, kid string) (*rsa.PublicKey, err
 	if err := json.Unmarshal(body, &document); err != nil {
 		return nil, errors.New("JWKS response is invalid")
 	}
-	keys := make(map[string]*rsa.PublicKey)
+	keys := make(map[string]*ecdsa.PublicKey)
 	for _, item := range document.Keys {
-		if item.Kty != "RSA" ||
+		if item.Kty != "EC" ||
+			item.Crv != "P-256" ||
 			(item.Use != "" && item.Use != "sig") ||
-			(item.Alg != "" && item.Alg != "RS256") ||
-			item.Kid == "" {
+			(item.Alg != "" && item.Alg != "ES256") ||
+			item.Kid == "" ||
+			(len(item.KeyOps) > 0 && !containsKeyOp(item.KeyOps, "verify")) {
 			continue
 		}
-		modulus, errN := base64.RawURLEncoding.DecodeString(item.N)
-		exponent, errE := base64.RawURLEncoding.DecodeString(item.E)
-		if errN != nil || errE != nil || len(modulus) < 256 || len(exponent) == 0 || len(exponent) > 4 {
+		xBytes, errX := base64.RawURLEncoding.DecodeString(item.X)
+		yBytes, errY := base64.RawURLEncoding.DecodeString(item.Y)
+		if errX != nil || errY != nil || len(xBytes) != 32 || len(yBytes) != 32 {
 			continue
 		}
-		e := 0
-		for _, b := range exponent {
-			e = e<<8 | int(b)
-		}
-		if e < 3 || e%2 == 0 {
+		x := new(big.Int).SetBytes(xBytes)
+		y := new(big.Int).SetBytes(yBytes)
+		curve := elliptic.P256()
+		if !curve.IsOnCurve(x, y) {
 			continue
 		}
-		keys[item.Kid] = &rsa.PublicKey{N: new(big.Int).SetBytes(modulus), E: e}
+		if _, duplicate := keys[item.Kid]; duplicate {
+			return nil, errors.New("JWKS contains duplicate signing key ids")
+		}
+		keys[item.Kid] = &ecdsa.PublicKey{Curve: curve, X: x, Y: y}
 	}
 	if len(keys) == 0 {
-		return nil, errors.New("JWKS contains no acceptable RS256 signing keys")
+		return nil, errors.New("JWKS contains no acceptable ES256 signing keys")
 	}
 	v.keys, v.fetchedAt = keys, time.Now()
 	if key := keys[kid]; key != nil {
 		return key, nil
 	}
 	return nil, errors.New("JWT signing key id is not trusted")
+}
+
+func containsKeyOp(ops []string, expected string) bool {
+	for _, op := range ops {
+		if op == expected {
+			return true
+		}
+	}
+	return false
 }
