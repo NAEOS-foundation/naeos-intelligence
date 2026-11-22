@@ -101,3 +101,27 @@ Compatibility inventory identifies migration risk but does not authorize changes
 ### Gate
 
 This section is static repository evidence only. No code, database, Supabase, runtime, staging or production changes were performed. Implementation remains blocked until owner-binding/backfill design and approval actor trust-source audit are documented and tested.
+
+
+## Approval API and Core allowlist audit (2026-11-22)
+
+### Approval API / trust source
+
+- The HTTP route inventory in `internal/httpapi/handler.go` contains request submit/get/cancel/analyze and does **not** expose an approval-decision route. The lifecycle implementation document explicitly says approval internals are prototype scaffolding and not exposed through the MVP HTTP API.
+- `MemoryStore.RecordApprovalDecision` and `postgres.Store.RecordApprovalDecision` are storage/prototype functions, not public HTTP endpoints. They accept an `approvedBy` string and validate only non-empty/length in storage; their APIs do not prove the caller identity. This must not be mistaken for a currently exploitable HTTP actor-spoofing route. If a route is introduced later, it must derive actor attribution from authenticated context and bind approval to action/target/parameters/context, expiry and single-use semantics.
+- Existing Core/Intelligence approval specs require authorized approvers and operation-bound approvals, but MVP scope disables consequential execution and approval API exposure.
+- Schema `00002_governance_approval_audit.sql` contains append-only approval decisions and governance audit tables; actor/client are stored as separate columns only partially (client_id + approved_by or actor_type/actor_id), no issuer/principal tuple is persisted.
+
+### Core repository allowlist evidence
+
+- Audited `NAEOS-foundation/naeos` at main commit `8b9aae0183c8f287e5587c0e4720ecc6fd9e0af1`. `internal/api/server.go` repository endpoint requires service JWT, GET-only and `naeos:repository:read`, then exact allowlist check via `NAEOS_GITHUB_ALLOWED_REPOSITORIES`; denied reads are audit logged with action `repository.read.denied`. The route is documented in Core service integration docs/OpenAPI.
+- Core test `TestServiceJWTIsRestrictedToAllowlistedReadOnlyRepositoryRoute` includes wrong scope, wrong method, and empty allowlist denial checks; it also verifies service JWT cannot access user-protected route. These establish some negative gates.
+- **Coverage gap:** the inspected test excerpt does not demonstrate an allowed-repository success path with outbound side-effect ledger or explicit no-GitHub-call assertion for denied cases. The actual `repositoryAllowed` normalization/parser and tests for allowlist whitespace/case/duplicates/config error behavior require additional review. Therefore the allowlist is verified as implemented/enforced, but its full robustness/side-effect test coverage is not yet certified.
+
+### Remaining gates
+
+- Review Core `repositoryAllowed` helper and complete repository endpoint tests, including success, denial/no external call, and allowlist parsing edge cases.
+- Confirm ownership/change control for Core allowlist configuration and evidence/audit retention.
+- Keep approval prototype out of public API; any future route requires identity-derived actor, policy checks, exact-action binding, expiry/single-use and negative tests.
+
+Static audit only; no code, runtime, configuration, database, staging, or production changes.
