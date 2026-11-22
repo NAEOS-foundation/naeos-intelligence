@@ -272,3 +272,8 @@ This section records repository and CI evidence only. It does not change databas
 - [ ] Obtain explicit approval before any production change.
 
 **Disposition:** database isolation is NOT READY. The catalog contains useful NOLOGIN role groups and RLS policies, but the required application login roles, runtime connection path, Goose schema isolation, and migrator separation are not evidenced. No database mutation or production operation is authorized by this document.
+
+
+## I. Follow-up implementation tracking (2026-11-22)
+
+A code-level isolation implementation is under review in [PR #83](https://github.com/NAEOS-foundation/naeos-intelligence/pull/83), stacked on IAM Phase 2 PR #81. It introduces a dedicated runtime/migrator group-role model, separate `MIGRATOR_DATABASE_URL`, schema-scoped Goose history, startup privilege checks, local/test role bootstrap, and owner-scoped RLS. At the time of this audit addendum, that implementation is unmerged and CI/security review is still in progress. It has not been applied to `naeos.db`; therefore the live catalog findings in sections A–F remain the authoritative staging state. Do not treat the proposed bootstrap SQL as an approved staging migration or role-provisioning instruction.
