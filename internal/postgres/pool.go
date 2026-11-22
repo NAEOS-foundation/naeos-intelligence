@@ -56,7 +56,8 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		isMember, groupCanLogin, groupSuper, groupCreateDB, groupCreateRole, groupBypass, groupHasParent bool
 		migratorCanLogin, migratorSuper, migratorCreateDB, migratorCreateRole, migratorBypass, migratorHasParent bool
 		schemaExists, schemaUsage, schemaCreate, controlPlaneUsage, identityUsage bool
-		requestsSelect, requestsInsert, requestsUpdate, requestsDelete bool
+		requestsSelect, requestsInsert, requestsTableUpdate, requestsDelete bool
+		requestsStatusUpdate, requestsUpdatedAtUpdate, requestsOwnerUpdate, requestsPayloadUpdate, requestsIdempotencyUpdate, requestsDigestUpdate bool
 		transitionsSelect, transitionsInsert, transitionsUpdate, transitionsDelete bool
 		eventsSelect, eventsInsert, eventsUpdate, eventsDelete bool
 		attemptsAny, approvalsAny, gooseAny, externalTableAccess, externalSequenceAccess, externalSecurityDefinerAccess, publicCreate bool
@@ -83,6 +84,12 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		       has_table_privilege(current_user,'naeos_intelligence.intelligence_requests','SELECT'),
 		       has_table_privilege(current_user,'naeos_intelligence.intelligence_requests','INSERT'),
 		       has_table_privilege(current_user,'naeos_intelligence.intelligence_requests','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','status','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','updated_at','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','client_id','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','payload','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','idempotency_key','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','payload_digest','UPDATE'),
 		       has_table_privilege(current_user,'naeos_intelligence.intelligence_requests','DELETE'),
 		       has_table_privilege(current_user,'naeos_intelligence.request_transitions','SELECT'),
 		       has_table_privilege(current_user,'naeos_intelligence.request_transitions','INSERT'),
@@ -143,7 +150,8 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		&migratorCanLogin, &migratorSuper, &migratorCreateDB, &migratorCreateRole, &migratorBypass, &migratorHasParent,
 		&schemaExists, &schemaUsage, &schemaCreate, &controlPlaneUsage, &identityUsage, &publicCreate,
 		&schemaOwner, &searchPath,
-		&requestsSelect, &requestsInsert, &requestsUpdate, &requestsDelete,
+		&requestsSelect, &requestsInsert, &requestsTableUpdate, &requestsDelete,
+		&requestsStatusUpdate, &requestsUpdatedAtUpdate, &requestsOwnerUpdate, &requestsPayloadUpdate, &requestsIdempotencyUpdate, &requestsDigestUpdate,
 		&transitionsSelect, &transitionsInsert, &transitionsUpdate, &transitionsDelete,
 		&eventsSelect, &eventsInsert, &eventsUpdate, &eventsDelete,
 		&attemptsAny, &approvalsAny, &gooseAny, &externalTableAccess, &externalSequenceAccess, &externalSecurityDefinerAccess,
@@ -158,7 +166,8 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		migratorCanLogin || migratorSuper || migratorCreateDB || migratorCreateRole || migratorBypass || migratorHasParent ||
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || schemaCreate ||
 		controlPlaneUsage || identityUsage || publicCreate || searchPath != runtimeSearchPath ||
-		!requestsSelect || !requestsInsert || !requestsUpdate || requestsDelete ||
+		!requestsSelect || !requestsInsert || requestsTableUpdate || requestsDelete ||
+		!requestsStatusUpdate || !requestsUpdatedAtUpdate || requestsOwnerUpdate || requestsPayloadUpdate || requestsIdempotencyUpdate || requestsDigestUpdate ||
 		transitionsSelect || !transitionsInsert || transitionsUpdate || transitionsDelete ||
 		!eventsSelect || !eventsInsert || eventsUpdate || eventsDelete ||
 		attemptsAny || approvalsAny || gooseAny || externalTableAccess || externalSequenceAccess || externalSecurityDefinerAccess {
