@@ -123,7 +123,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("verify PostgreSQL runtime role contract: %w", err)
 	}
-	if sessionUser != runtimeLoginRole || currentUser != runtimeGroupRole ||
+	if sessionUser != runtimeLoginRole || currentUser != runtimeLoginRole ||
 		!loginCanLogin || loginSuper || loginCreateDB || loginCreateRole || loginBypass || !loginInherit ||
 		!isMember || membershipCount != 1 ||
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
