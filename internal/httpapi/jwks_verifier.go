@@ -22,6 +22,7 @@ const (
 	maxJWKSBytes = 1 << 20
 	jwtClockSkew = 60 * time.Second
 	jwtMaxLifetime = 15 * time.Minute
+	maxJWTBytes = 16 * 1024
 )
 
 type JWKSVerifier struct {
@@ -93,6 +94,9 @@ func NewJWKSVerifier(issuer, audience, jwksURL string) (*JWKSVerifier, error) {
 }
 
 func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, error) {
+	if token == "" || len(token) > maxJWTBytes {
+		return Principal{}, errors.New("JWT is empty or exceeds the maximum token size")
+	}
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return Principal{}, errors.New("malformed JWT")
@@ -149,7 +153,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 	// IAM-04/05: Supabase Auth human-user identity is the verified issuer
 	// namespace plus subject. Do not substitute OAuth client_id for sub:
 	// they represent different identity domains. ClientID is retained in the
-	// existing API model as the ownership key, but is populated only from sub.
+	// separately and is populated only from the client_id claim.
 	if strings.TrimSpace(claims.Subject) == "" {
 		return Principal{}, errors.New("JWT has no subject identity")
 	}
