@@ -30,6 +30,10 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	}
 	defer adminPool.Close()
 
+	if err := Up(ctx, database.MigratorDSN, "../../migrations"); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
 	// Both application identities must fail closed if they can execute an
 	// externally-owned SECURITY DEFINER function outside the Intelligence schema.
 	if _, err := adminPool.Exec(ctx, `
@@ -48,9 +52,6 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 		t.Fatalf("drop external SECURITY DEFINER probe: %v", err)
 	}
 
-	if err := Up(ctx, database.MigratorDSN, "../../migrations"); err != nil {
-		t.Fatalf("apply migrations: %v", err)
-	}
 	pool, err := OpenPool(ctx, database.RuntimeDSN)
 	if err != nil {
 		t.Fatalf("open pool: %v", err)
