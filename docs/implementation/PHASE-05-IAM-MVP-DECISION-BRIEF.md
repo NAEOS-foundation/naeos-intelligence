@@ -121,7 +121,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 1. Keep the accepted single-tenant logical boundary for MVP; reopen it only if a partner or deployment requirement calls for shared tenancy.
 2. Accept IAM-01 through IAM-03 (protocol, issuer, trust boundaries) after a partner/deployment model is known.
-3. Resolve IAM-04/05 actor/client semantics; the bounded API authorization and ownership contract for IAM-08/09 is accepted by ADR-0004.
+3. IAM-04/05/09 are accepted for the human-session read-only API by the ADR-0004 amendment; resolve the still-open IAM-08 trusted scope source and capability mapping before activation.
 4. Resolve IAM-10/11 token validation and lifecycle plus IAM-14 audit attribution; the in-process propagation and API denial contract for IAM-12/13 is accepted by ADR-0004.
 5. Record rationale and date in the worksheet and create accepted ADR(s).
 6. Align API Contract, Security Requirements, Data Model, traceability matrix, and Phase 5 implementation prompt.
@@ -133,7 +133,7 @@ Maintainer input is required for these questions; this document intentionally do
 
 - Does a future partner or deployment requirement require shared tenancy? If so, reopen IAM-06/07 before implementation.
 - Which IdP/issuer must the first partner integration use, if already known?
-- Are callers exclusively machine-to-machine, or will human users act through clients?
+- Human Supabase Auth sessions are the accepted caller model for this phase; do future partner requirements require a separate service-principal contract?
 - Is rapid token revocation required beyond short-lived tokens and key rotation?
 - What actor/client/tenant attribution and retention are mandatory for audit?
 
@@ -149,7 +149,7 @@ Maintainer input is required for these questions; this document intentionally do
 | IAM-12–13 | Accepted for read-only API | ADR-0004 | 2026-11-10 |
 | IAM-01–02 | Accepted — Supabase Auth RS256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-11 |
 | IAM-03 | Pending — pin issuer/audience per environment after real-token verification | Pending | Pending |
-| IAM-04–05 | Pending | Pending | Pending |
+| IAM-04–05, IAM-09 | Accepted for human-session read-only API | ADR-0004 amendment; verified `iss + sub`, separate `client_id`, and server-derived owner key | 2026-11-22 |
 | IAM-06–07 | Pending | Pending | Pending |
-| IAM-08–09 | Pending | Pending | Pending |
+| IAM-08 | Partially accepted / pending | Endpoint scope enforcement and owner checks accepted; trusted scope source/mapping remains open | Pending |
 | IAM-10–14 | Pending | Pending | Pending |
