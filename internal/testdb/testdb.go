@@ -81,7 +81,7 @@ func Bootstrap(ctx context.Context) (*Database, error) {
 		`REVOKE ALL ON SCHEMA naeos_control_plane FROM naeos_intelligence_runtime, naeos_intelligence_migrator`,
 		`REVOKE ALL ON SCHEMA naeos_identity FROM naeos_intelligence_runtime, naeos_intelligence_migrator`,
 		`ALTER ROLE naeos_intelligence_runtime_login SET search_path TO 'pg_catalog, naeos_intelligence'`,
-		`ALTER ROLE naeos_intelligence_migrator_login SET search_path TO 'pg_catalog, naeos_intelligence'`,
+		`ALTER ROLE naeos_intelligence_migrator_login SET search_path TO 'naeos_intelligence, pg_catalog'`,
 	}
 	for _, statement := range statements {
 		if _, err := conn.Exec(ctx, statement); err != nil {
