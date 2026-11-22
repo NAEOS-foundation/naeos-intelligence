@@ -93,23 +93,11 @@ jobs:
         run: |
           bash -n docker/postgres/init/01-runtime-migrator-roles.sh
           bash docker/postgres/init/01-runtime-migrator-roles.sh
-          psql "$DATABASE_ADMIN_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
-          BEGIN
-            IF EXISTS (
-              SELECT 1 FROM pg_roles
-              WHERE rolname IN ('naeos_intelligence_runtime','naeos_intelligence_migrator')
-                AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit)
-            ) THEN
-              RAISE EXCEPTION 'database roles violate least-privilege attributes';
-            END IF;
-            IF (SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='naeos_intelligence')
-              <> 'naeos_intelligence_migrator' THEN
-              RAISE EXCEPTION 'migrator must own naeos_intelligence schema';
-            END IF;
-          END
-          $;
-          SQL
+          roles_ok=$(psql "$DATABASE_ADMIN_URL" -tA -v ON_ERROR_STOP=1 -c "SELECT count(*)=2 AND bool_and(NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolinherit) FROM pg_roles WHERE rolname IN ('naeos_intelligence_runtime','naeos_intelligence_migrator')")
+          [[ "$roles_ok" == "t" ]] || { echo "Role privilege assertion failed"; exit 1; }
+          schema_owner=$(psql "$DATABASE_ADMIN_URL" -tA -v ON_ERROR_STOP=1 -c "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='naeos_intelligence'")
+          [[ "$schema_owner" == "naeos_intelligence_migrator" ]] || { echo "Schema owner assertion failed: $schema_owner"; exit 1; }
+L
       - name: Regenerate and verify third-party notices
         run: |
           python3 scripts/generate-third-party-notices.py
