@@ -64,6 +64,14 @@ jobs:
           free -h
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate Docker Compose network and database role boundaries
+        run: |
+          set -euo pipefail
+          docker compose config --quiet
+          docker compose config --format json > "${RUNNER_TEMP}/compose.json"
+          jq -e '.services.postgres.ports[] | select(.target == 5432 and .published == "5433" and .host_ip == "127.0.0.1")' "${RUNNER_TEMP}/compose.json" >/dev/null
+          jq -e '(.services."naeos-intelligence".environment.DATABASE_URL | startswith("postgres://naeos_intelligence_runtime:")) and (.services."naeos-intelligence".environment.MIGRATOR_DATABASE_URL == null)' "${RUNNER_TEMP}/compose.json" >/dev/null
+          jq -e '(.services."naeos-intelligence-migrate".environment.MIGRATOR_DATABASE_URL | startswith("postgres://naeos_intelligence_migrator:")) and (.services."naeos-intelligence-migrate".environment.DATABASE_URL == null)' "${RUNNER_TEMP}/compose.json" >/dev/null
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
