@@ -176,6 +176,31 @@ NAEOS Intelligence follows these foundational rules:
 
 The initial MVP will not permit autonomous production deployment or unrestricted production data modification.
 
+## Database runtime and migrator isolation
+
+The PostgreSQL-backed service requires two distinct login roles:
+
+- `naeos_intelligence_runtime`: runtime DML only (`SELECT`, `INSERT`, `UPDATE`) and sequence usage. It has no schema creation, DDL, ownership, or migration-ledger access.
+- `naeos_intelligence_migrator`: owns the `naeos_intelligence` schema and migration objects; used only by the explicit migration command.
+
+The service verifies the authenticated PostgreSQL role at startup and fails closed if the runtime URL authenticates as anything other than `naeos_intelligence_runtime`. The migration command similarly requires `MIGRATOR_DATABASE_URL` to authenticate as `naeos_intelligence_migrator`. Do not share credentials between these roles.
+
+### Local Compose setup
+
+The Compose PostgreSQL init scripts provision the roles and schema only when the database volume is initialized for the first time. Local fallback passwords are intentionally development-only; set `RUNTIME_DB_PASSWORD` and `MIGRATOR_DB_PASSWORD` before initializing the volume and never use these defaults outside local development.
+
+Run the database and explicit migration job:
+
+```sh
+docker compose up -d postgres
+docker compose --profile migrate run --rm naeos-intelligence-migrate
+docker compose up -d naeos-intelligence
+```
+
+If an existing local database volume predates role provisioning, the init scripts will not automatically rerun. Back up any needed local data before recreating the volume; do not delete volumes containing data you need.
+
+Production/staging role provisioning must be performed through the environment's reviewed database administration process. The application and migration command must receive separate secrets/DSNs, and production migrations must remain an explicit release step.
+
 ## NAEOS service connections
 
 The API enriches explicitly supplied engineering context from NAEOS Core and GitHub. These connectors are read-only and run only for matching source types (`naeos-core` and `repository`); other source types do not trigger outbound requests. CRM records and personal data are not connector inputs. The Core connector calls `GET /api/v1/repositories/{owner}/{name}` on the standalone Core API; Core limits requests to `NAEOS_GITHUB_ALLOWED_REPOSITORIES` and requires the `naeos:repository:read` service scope. For a local host setup, Core can listen on `8081` while Intelligence listens on `8080`; set the Core base URL to `http://127.0.0.1:8081/api`.
