@@ -13,6 +13,8 @@ func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.ConnConfig.RuntimeParams == nil { cfg.ConnConfig.RuntimeParams = make(map[string]string) }
+	cfg.ConnConfig.RuntimeParams["search_path"] = "pg_catalog, naeos_intelligence"
 	cfg.MaxConns = 12
 	cfg.MinConns = 0
 	cfg.MaxConnLifetime = 30 * time.Minute
