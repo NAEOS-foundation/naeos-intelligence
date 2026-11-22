@@ -39,6 +39,23 @@ func TestJWKSVerifierAcceptsValidES256AndExtractsScopes(t *testing.T) {
 	}
 }
 
+
+func TestJWKSVerifierAllowsMissingClientIDAndKeepsHumanOwner(t *testing.T) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil { t.Fatal(err) }
+	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", keys:map[string]*ecdsa.PublicKey{"kid":&privateKey.PublicKey}, fetchedAt:time.Now()}
+	token := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{
+		"iss":verifier.issuer, "aud":verifier.audience, "sub":"user-no-client-id",
+		"exp":time.Now().Unix()+300, "naeos_scopes":[]string{"intelligence:read"},
+	})
+	principal, err := verifier.Verify(context.Background(), token)
+	if err != nil { t.Fatal(err) }
+	if principal.ClientID != "" { t.Fatalf("missing client_id must remain empty, got %q", principal.ClientID) }
+	if principal.Subject != "user-no-client-id" || principal.OwnerID() == "" {
+		t.Fatalf("verified human identity must remain usable independently of client_id: %+v", principal)
+	}
+}
+
 func TestJWKSVerifierIgnoresUntrustedScopeSources(t *testing.T) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil { t.Fatal(err) }
@@ -75,7 +92,8 @@ func TestJWKSVerifierRejectsWrongAlgorithmsAndExpiredClaims(t *testing.T) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil { t.Fatal(err) }
 	verifier := &JWKSVerifier{issuer:"https://issuer.test", audience:"naeos-api", keys:map[string]*ecdsa.PublicKey{"kid":&privateKey.PublicKey}, fetchedAt:time.Now()}
-	expired := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{"iss":verifier.issuer,"aud":verifier.audience,"sub":"svc","exp":time.Now().Unix()-1})
+	expiredNow := time.Now().Unix()
+	expired := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{"iss":verifier.issuer,"aud":verifier.audience,"sub":"svc","iat":expiredNow-300,"exp":expiredNow-1})
 	if _,err:=verifier.Verify(context.Background(),expired); err==nil { t.Fatal("expired JWT must be rejected") }
 	for _, alg := range []string{"RS256","HS256","none"} {
 		token := unsignedOrSignedHeaderToken(t, privateKey, "kid", alg)
