@@ -65,7 +65,7 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 		loginCanLogin, loginSuper, loginCreateDB, loginCreateRole, loginBypass, loginInherit bool
 		isMember, groupCanLogin, groupSuper, groupCreateDB, groupCreateRole, groupBypass, groupHasParent bool
 		schemaExists, schemaUsage, schemaCreate, controlPlaneUsage, identityUsage, publicCreate bool
-		externalTableAccess, publicLedgerExists bool
+		externalTableAccess, externalSequenceAccess, externalSecurityDefinerAccess, publicLedgerExists bool
 		membershipCount int
 	)
 	err := conn.QueryRowContext(ctx, `
@@ -93,6 +93,22 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 		             OR has_table_privilege(current_user,c.oid,'INSERT')
 		             OR has_table_privilege(current_user,c.oid,'UPDATE')
 		             OR has_table_privilege(current_user,c.oid,'DELETE'))
+		       ),
+		       EXISTS (
+		         SELECT 1 FROM pg_class c
+		         JOIN pg_namespace ns ON ns.oid=c.relnamespace
+		         WHERE c.relkind='S'
+		           AND ns.nspname IN ('public','naeos_control_plane','naeos_identity')
+		           AND (has_sequence_privilege(current_user,c.oid,'USAGE')
+		             OR has_sequence_privilege(current_user,c.oid,'SELECT')
+		             OR has_sequence_privilege(current_user,c.oid,'UPDATE'))
+		       ),
+		       EXISTS (
+		         SELECT 1 FROM pg_proc p
+		         JOIN pg_namespace ns ON ns.oid=p.pronamespace
+		         WHERE p.prosecdef
+		           AND ns.nspname IN ('public','naeos_control_plane','naeos_identity')
+		           AND has_function_privilege(current_user,p.oid,'EXECUTE')
 		       )
 		FROM pg_roles login
 		JOIN pg_roles migrator_group ON migrator_group.rolname='naeos_intelligence_migrator'
@@ -104,7 +120,7 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 		&isMember, &membershipCount,
 		&groupCanLogin, &groupSuper, &groupCreateDB, &groupCreateRole, &groupBypass, &groupHasParent,
 		&schemaExists, &schemaUsage, &schemaCreate, &controlPlaneUsage, &identityUsage, &publicCreate,
-		&schemaOwner, &searchPath, &publicLedgerExists, &externalTableAccess,
+		&schemaOwner, &searchPath, &publicLedgerExists, &externalTableAccess, &externalSequenceAccess, &externalSecurityDefinerAccess,
 	)
 	if err != nil {
 		return fmt.Errorf("verify PostgreSQL migrator role contract: %w", err)
@@ -115,7 +131,7 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || !schemaCreate ||
 		controlPlaneUsage || identityUsage || publicCreate || searchPath != migratorSearchPath ||
-		publicLedgerExists || externalTableAccess {
+		publicLedgerExists || externalTableAccess || externalSequenceAccess || externalSecurityDefinerAccess {
 		return errors.New("PostgreSQL migrator role contract rejected: require dedicated non-privileged login, DDL only in naeos_intelligence, no public Goose ledger, and no CRM/Control Plane/Identity privileges")
 	}
 	return nil
