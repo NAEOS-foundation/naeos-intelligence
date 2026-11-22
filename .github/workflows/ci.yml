@@ -81,22 +81,20 @@ jobs:
           if-no-files-found: error
       - name: Download modules
         run: go mod download
-      - name: Provision isolated test roles and schema
+      - name: Provision and verify isolated test roles/schema via bootstrap
+        env:
+          POSTGRES_USER: naeos
+          POSTGRES_DB: naeos_intelligence_test
+          PGHOST: localhost
+          PGPASSWORD: naeos
+          RUNTIME_DB_PASSWORD: runtime-ci-password
+          MIGRATOR_DB_PASSWORD: migrator-ci-password
+          ROLE_BOOTSTRAP_SQL_FILE: docker/postgres/init/02-runtime-migrator-roles.sql.in
         run: |
-          psql "$DATABASE_ADMIN_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE ROLE naeos_intelligence_runtime LOGIN PASSWORD 'runtime-ci-password'
-            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
-          CREATE ROLE naeos_intelligence_migrator LOGIN PASSWORD 'migrator-ci-password'
-            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
-          CREATE SCHEMA naeos_intelligence AUTHORIZATION naeos_intelligence_migrator;
-          GRANT CONNECT ON DATABASE naeos_intelligence_test TO naeos_intelligence_runtime, naeos_intelligence_migrator;
-          GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime;
-          GRANT USAGE, CREATE ON SCHEMA naeos_intelligence TO naeos_intelligence_migrator;
-          ALTER DEFAULT PRIVILEGES FOR ROLE naeos_intelligence_migrator IN SCHEMA naeos_intelligence
-            GRANT SELECT, INSERT, UPDATE ON TABLES TO naeos_intelligence_runtime;
-          ALTER DEFAULT PRIVILEGES FOR ROLE naeos_intelligence_migrator IN SCHEMA naeos_intelligence
-            GRANT USAGE, SELECT ON SEQUENCES TO naeos_intelligence_runtime;
-          SQL
+          bash -n docker/postgres/init/01-runtime-migrator-roles.sh
+          bash docker/postgres/init/01-runtime-migrator-roles.sh
+          psql "$DATABASE_ADMIN_URL" -v ON_ERROR_STOP=1 -c "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolinherit FROM pg_roles WHERE rolname IN ('naeos_intelligence_runtime','naeos_intelligence_migrator');"
+          psql "$DATABASE_ADMIN_URL" -v ON_ERROR_STOP=1 -c "SELECT nspname, pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname='naeos_intelligence';"
       - name: Regenerate and verify third-party notices
         run: |
           python3 scripts/generate-third-party-notices.py
