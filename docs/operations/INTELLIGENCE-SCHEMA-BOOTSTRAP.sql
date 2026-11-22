@@ -36,7 +36,7 @@ REVOKE CREATE ON SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
 -- CREATE ROLE naeos_intelligence_migrator_login LOGIN INHERIT
 --   NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '<secret-managed>';
 -- GRANT naeos_intelligence_migrator TO naeos_intelligence_migrator_login;
--- ALTER ROLE naeos_intelligence_migrator_login SET search_path TO 'pg_catalog, naeos_intelligence';
+-- ALTER ROLE naeos_intelligence_migrator_login SET search_path TO 'naeos_intelligence, pg_catalog';
 
 -- No default table grants are created here. Migration 00003 grants only the
 -- active API call-path privileges to naeos_intelligence_runtime.
