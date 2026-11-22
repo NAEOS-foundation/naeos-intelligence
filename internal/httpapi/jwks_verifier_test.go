@@ -17,6 +17,18 @@ import (
 	"time"
 )
 
+func TestJWKSVerifierRejectsOversizedTokenBeforeJWKSLookup(t *testing.T) {
+	verifier := &JWKSVerifier{
+		issuer:   "https://issuer.test",
+		audience: "naeos-api",
+		jwksURL:  "https://jwks.invalid",
+		client:   http.DefaultClient,
+	}
+	if _, err := verifier.Verify(context.Background(), strings.Repeat("a", maxJWTBytes+1)); err == nil {
+		t.Fatal("oversized JWT must be rejected before network lookup")
+	}
+}
+
 func TestJWKSVerifierAcceptsValidES256AndExtractsScopes(t *testing.T) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil { t.Fatal(err) }
