@@ -61,6 +61,8 @@ func e2ePostgresHandler(t *testing.T, ctx context.Context) (http.Handler, *postg
 	t.Helper()
 	store := e2ePostgresStore(t, ctx)
 	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "e2e-user",
 		ClientID: "e2e-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
@@ -71,6 +73,8 @@ func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http
 	t.Helper()
 	store := e2ePostgresStore(t, ctx)
 	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "e2e-user",
 		ClientID: "e2e-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
@@ -148,7 +152,7 @@ func TestE2EPostgresSubmitGetCancel(t *testing.T) {
 	}
 
 	// Verify via store directly
-	stored, err := store.Get(ctx, "e2e-client", accepted.RequestID)
+	stored, err := store.Get(ctx, httpapi.Principal{Issuer: "https://issuer.example/auth/v1", Subject: "e2e-user"}.OwnerID(), accepted.RequestID)
 	if err != nil || stored.Status != httpapi.StatusCancelled {
 		t.Fatalf("stored status=%s err=%v", stored.Status, err)
 	}
@@ -184,11 +188,15 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 	store := e2ePostgresStore(t, ctx)
 
 	authA := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
-		ClientID: "client-a",
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "user-a",
+		ClientID: "shared-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
 	authB := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
-		ClientID: "client-b",
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "user-b",
+		ClientID: "shared-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
 	hA := httpapi.NewHandler(store, authA, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), nil)
@@ -208,6 +216,24 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 	var accepted httpapi.Accepted
 	if err := json.Unmarshal(submitRec.Body.Bytes(), &accepted); err != nil {
 		t.Fatalf("decode accepted: %v", err)
+	}
+
+	// Same OAuth client_id must not collapse two human subjects into one owner.
+	submitReqB := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReqB.Header.Set("Content-Type", "application/json")
+	submitReqB.Header.Set("Authorization", "Bearer fake")
+	submitReqB.Header.Set("Idempotency-Key", "iso-key-"+t.Name())
+	submitRecB := httptest.NewRecorder()
+	hB.ServeHTTP(submitRecB, submitReqB)
+	if submitRecB.Code != http.StatusAccepted {
+		t.Fatalf("shared-client second submit status=%d, want 202: %s", submitRecB.Code, submitRecB.Body.String())
+	}
+	var acceptedB httpapi.Accepted
+	if err := json.Unmarshal(submitRecB.Body.Bytes(), &acceptedB); err != nil {
+		t.Fatalf("decode second accepted: %v", err)
+	}
+	if acceptedB.RequestID == accepted.RequestID {
+		t.Fatal("different human subjects sharing client_id must not share idempotency records")
 	}
 
 	// Client-b tries to get client-a's request -> 404
