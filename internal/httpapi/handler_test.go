@@ -51,9 +51,7 @@ func jsonRequest(method, path, body string) *http.Request {
 }
 
 func testHandler() http.Handler {
-	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", Issuer: "https://issuer.example/auth/v1",
-		Subject: "user-a",
-		ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	return NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
 }
 
@@ -75,9 +73,7 @@ func TestMissingBearerTokenRejected(t *testing.T) {
 }
 
 func TestInsufficientScopeRejected(t *testing.T) {
-	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", Issuer: "https://issuer.example/auth/v1",
-		Subject: "user-a",
-		ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", ClientID: "client-a", Scopes: map[string]bool{"intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), nil)
 	r := jsonRequest(http.MethodPost, "/api/v1/intelligence/requests", `{"purpose":"test","execution_mode":"analysis_only"}`)
 	r.Header.Set("Authorization", "Bearer fake")
@@ -498,9 +494,7 @@ func TestAnalyzeEndpoint_RunPipeline(t *testing.T) {
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 	orch.EvidenceStore = &testEvidenceRecorder{}
 
-	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", Issuer: "https://issuer.example/auth/v1",
-		Subject: "user-a",
-		ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), orch)
 
 	// Submit a request first
@@ -593,9 +587,7 @@ func TestAnalyzeEndpoint_WithGitHubResolver(t *testing.T) {
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 	orch.EvidenceStore = &testEvidenceRecorder{}
 
-	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", Issuer: "https://issuer.example/auth/v1",
-		Subject: "user-a",
-		ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), orch)
 
 	// Submit request with GitHub repository context source
@@ -668,9 +660,7 @@ func TestAnalyzeEndpoint_WithNAEOSCoreResolver(t *testing.T) {
 	orch := orchestrator.NewOrchestrator(cl, cb, pl, rp)
 	orch.EvidenceStore = &testEvidenceRecorder{}
 
-	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", Issuer: "https://issuer.example/auth/v1",
-		Subject: "user-a",
-		ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
+	auth := Authenticator{Verifier: fakeVerifier{principal: Principal{Issuer: "https://issuer.example/auth/v1", Subject: "user-a", ClientID: "client-a", Scopes: map[string]bool{"intelligence:write": true, "intelligence:read": true}}}}
 	h := NewHandler(NewMemoryStore(), auth, ratelimit.NewLimiter(100, 100), MustTestValidator(), orch)
 
 	// Submit request with NAEOS Core repository context source
