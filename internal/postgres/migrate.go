@@ -40,6 +40,7 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 		return fmt.Errorf("target schema %q is not provisioned; refusing to run migrations", intelligenceSchema)
 	}
 
+	goose.SetTableName(intelligenceSchema + ".goose_db_version")
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set goose dialect: %w", err)
 	}
