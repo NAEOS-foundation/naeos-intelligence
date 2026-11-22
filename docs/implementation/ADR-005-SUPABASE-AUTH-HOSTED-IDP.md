@@ -1,6 +1,6 @@
 # ADR-005: Supabase Auth as the hosted NAEOS Identity Provider
 
-**Status:** Accepted for IAM-01 and IAM-02; `naeos-crm-production` selected as IdP; remaining IAM decisions are open  
+**Status:** Accepted for IAM-01/02; IAM-04/05/09 accepted for the bounded human-session API by ADR-0004 amendment; remaining activation gates are open  
 **Date:** 2026-11-11  
 **Decision owner:** NAEOS maintainer  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `PHASE-05-IAM-MVP-DECISION-BRIEF.md`
@@ -36,13 +36,12 @@ Selected IdP project: `naeos-crm-production` (`oruykkehukoiipldzcvc`, Singapore)
 
 - IAM-03: exact issuer and audience pinning per environment.
 - IAM-04/05: accepted by the 2026-11-22 amendment to ADR-0004 for the human-session API: canonical human principal is verified `iss + sub`; OAuth `client_id` is separate. Machine/service-principal support remains deferred.
-- IAM-06/07: single-tenant pilot or tenant model and trusted tenant binding.
+- IAM-06/07: accepted single-tenant MVP boundary (ADR-0003); shared tenancy and tenant claims remain deferred.
 - IAM-08: authorization vocabulary and trusted scope/role mapping. Supabase user-editable `user_metadata` must never drive authorization; use server-controlled `app_metadata` or a trusted server-side mapping.
 - IAM-09: accepted for the read-only human-session API by the 2026-11-22 amendment to ADR-0004; owner key derives from verified `iss + sub`. Legacy records are not automatically reassigned.
 - IAM-10: complete claim validation, including required claims and `iat`/clock-skew policy.
 - IAM-11: token expiry, session revocation, JWKS cache and key-rotation/revocation response.
-- IAM-12: trusted identity propagation.
-- IAM-13: 401/403/404 denial and non-disclosure behavior.
+- IAM-12/13: accepted for the bounded read-only API by ADR-0004; cross-service propagation remains out of scope.
 - IAM-14: audit attribution and retention.
 
 ## Security gates
