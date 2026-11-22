@@ -97,6 +97,21 @@ jobs:
           [[ "$roles_ok" == "t" ]] || { echo "Role privilege assertion failed"; exit 1; }
           schema_owner=$(psql "$DATABASE_ADMIN_URL" -tA -v ON_ERROR_STOP=1 -c "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname='naeos_intelligence'")
           [[ "$schema_owner" == "naeos_intelligence_migrator" ]] || { echo "Schema owner assertion failed: $schema_owner"; exit 1; }
+      - name: Verify role bootstrap fails on SQL errors
+        env:
+          POSTGRES_USER: naeos
+          POSTGRES_DB: naeos_intelligence_test
+          PGHOST: localhost
+          PGPASSWORD: naeos
+          ROLE_BOOTSTRAP_SQL_FILE: ${{ runner.temp }}/invalid-role-bootstrap.sql
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'SELECT * FROM naeos_intelligence_intentionally_missing_bootstrap_probe;' > "$ROLE_BOOTSTRAP_SQL_FILE"
+          if bash docker/postgres/init/01-runtime-migrator-roles.sh; then
+            echo "Bootstrap unexpectedly succeeded with invalid SQL"
+            exit 1
+          fi
+          echo "Bootstrap correctly returned non-zero for invalid SQL."
       - name: Regenerate and verify third-party notices
         run: |
           python3 scripts/generate-third-party-notices.py
