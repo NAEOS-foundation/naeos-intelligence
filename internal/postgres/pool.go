@@ -57,7 +57,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		migratorCanLogin, migratorSuper, migratorCreateDB, migratorCreateRole, migratorBypass, migratorHasParent bool
 		schemaExists, schemaUsage, schemaCreate, controlPlaneUsage, identityUsage bool
 		requestsSelect, requestsInsert, requestsTableUpdate, requestsDelete bool
-		requestsStatusUpdate, requestsUpdatedAtUpdate, requestsOwnerUpdate, requestsPayloadUpdate, requestsIdempotencyUpdate, requestsDigestUpdate bool
+		requestsStatusUpdate, requestsUpdatedAtUpdate, requestsOwnerUpdate, requestsPayloadUpdate, requestsIdempotencyUpdate, requestsDigestUpdate, requestsIDUpdate, requestsCreatedAtUpdate bool
 		transitionsSelect, transitionsInsert, transitionsUpdate, transitionsDelete bool
 		eventsSelect, eventsInsert, eventsUpdate, eventsDelete bool
 		attemptsAny, approvalsAny, gooseAny, externalTableAccess, externalSequenceAccess, externalSecurityDefinerAccess, publicCreate bool
@@ -90,6 +90,8 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','payload','UPDATE'),
 		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','idempotency_key','UPDATE'),
 		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','payload_digest','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','id','UPDATE'),
+		       has_column_privilege(current_user,'naeos_intelligence.intelligence_requests','created_at','UPDATE'),
 		       has_table_privilege(current_user,'naeos_intelligence.intelligence_requests','DELETE'),
 		       has_table_privilege(current_user,'naeos_intelligence.request_transitions','SELECT'),
 		       has_table_privilege(current_user,'naeos_intelligence.request_transitions','INSERT'),
@@ -119,7 +121,10 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		           AND (has_table_privilege(current_user,c.oid,'SELECT')
 		             OR has_table_privilege(current_user,c.oid,'INSERT')
 		             OR has_table_privilege(current_user,c.oid,'UPDATE')
-		             OR has_table_privilege(current_user,c.oid,'DELETE'))
+		             OR has_table_privilege(current_user,c.oid,'DELETE')
+		             OR has_table_privilege(current_user,c.oid,'TRUNCATE')
+		             OR has_table_privilege(current_user,c.oid,'REFERENCES')
+		             OR has_table_privilege(current_user,c.oid,'TRIGGER'))
 		       ),
 		       EXISTS (
 		         SELECT 1 FROM pg_class c
@@ -151,7 +156,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		&schemaExists, &schemaUsage, &schemaCreate, &controlPlaneUsage, &identityUsage, &publicCreate,
 		&schemaOwner, &searchPath,
 		&requestsSelect, &requestsInsert, &requestsTableUpdate,
-		&requestsStatusUpdate, &requestsUpdatedAtUpdate, &requestsOwnerUpdate, &requestsPayloadUpdate, &requestsIdempotencyUpdate, &requestsDigestUpdate,
+		&requestsStatusUpdate, &requestsUpdatedAtUpdate, &requestsOwnerUpdate, &requestsPayloadUpdate, &requestsIdempotencyUpdate, &requestsDigestUpdate, &requestsIDUpdate, &requestsCreatedAtUpdate,
 		&requestsDelete,
 		&transitionsSelect, &transitionsInsert, &transitionsUpdate, &transitionsDelete,
 		&eventsSelect, &eventsInsert, &eventsUpdate, &eventsDelete,
@@ -168,7 +173,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || schemaCreate ||
 		controlPlaneUsage || identityUsage || publicCreate || searchPath != runtimeSearchPath ||
 		!requestsSelect || !requestsInsert || requestsTableUpdate || requestsDelete ||
-		!requestsStatusUpdate || !requestsUpdatedAtUpdate || requestsOwnerUpdate || requestsPayloadUpdate || requestsIdempotencyUpdate || requestsDigestUpdate ||
+		!requestsStatusUpdate || !requestsUpdatedAtUpdate || requestsOwnerUpdate || requestsPayloadUpdate || requestsIdempotencyUpdate || requestsDigestUpdate || requestsIDUpdate || requestsCreatedAtUpdate ||
 		transitionsSelect || !transitionsInsert || transitionsUpdate || transitionsDelete ||
 		!eventsSelect || !eventsInsert || eventsUpdate || eventsDelete ||
 		attemptsAny || approvalsAny || gooseAny || externalTableAccess || externalSequenceAccess || externalSecurityDefinerAccess {
