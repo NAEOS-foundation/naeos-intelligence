@@ -15,6 +15,8 @@ Implements durable requests, owner-scoped idempotency, append-only transitions, 
 - MIGRATOR_DATABASE_URL is required by the separate migration command. It must authenticate as a dedicated login member of the schema-scoped migrator group. The migration command rejects a legacy public.goose_db_version ledger rather than silently rerunning migrations.
 - Request ownership is set transaction-locally through naeos.owner_id. RLS policies enforce owner scope for requests, transitions, and audit events as defense in depth against missing owner predicates. This custom GUC is set by the trusted API after JWT verification; it is not an independent boundary against a compromised runtime credential or arbitrary SQL execution.
 - The API runtime has no privileges on request_attempts or approval_decisions until separate worker/approval principals and authorization contracts are implemented.
+- Request lifecycle updates are column-scoped to `status` and `updated_at`; identity, payload, idempotency key, digest, ID, and creation-time fields remain immutable to the runtime role.
+- Runtime startup verifies no table-wide UPDATE privilege and rejects UPDATE access to immutable request columns. It also rejects external sequence privileges and executable SECURITY DEFINER functions outside the Intelligence schema.
 - Request creation, idempotency conflict/replay resolution, and initial transition event are transactionally coupled.
 - Cancellation serializes on the request row and records the lifecycle event within the same transaction.
 - Attempt persistence code remains in the repository, but the API runtime is intentionally denied access to request_attempts because the worker principal and owner-scoped worker lifecycle are not yet implemented.
