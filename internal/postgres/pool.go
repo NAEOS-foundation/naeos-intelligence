@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const intelligenceSchema = "naeos_intelligence"
 const runtimeGroupRole = "naeos_intelligence_runtime"
 const runtimeLoginRole = "naeos_intelligence_runtime_login"
 const migratorGroupRole = "naeos_intelligence_migrator"
