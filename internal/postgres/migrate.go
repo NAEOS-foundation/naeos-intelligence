@@ -21,7 +21,7 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 	if cfg.RuntimeParams == nil {
 		cfg.RuntimeParams = make(map[string]string)
 	}
-	cfg.RuntimeParams["search_path"] = intelligenceSearchPath
+	cfg.RuntimeParams["search_path"] = migratorSearchPath
 	cfg.RuntimeParams["role"] = migratorGroupRole
 	conn := stdlib.OpenDB(*cfg)
 	defer conn.Close()
@@ -114,7 +114,7 @@ func verifyMigratorRole(ctx context.Context, conn *sql.DB) error {
 		!isMember || membershipCount != 1 ||
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || !schemaCreate ||
-		controlPlaneUsage || identityUsage || publicCreate || searchPath != intelligenceSearchPath ||
+		controlPlaneUsage || identityUsage || publicCreate || searchPath != migratorSearchPath ||
 		publicLedgerExists || externalTableAccess {
 		return errors.New("PostgreSQL migrator role contract rejected: require dedicated non-privileged login, DDL only in naeos_intelligence, no public Goose ledger, and no CRM/Control Plane/Identity privileges")
 	}
