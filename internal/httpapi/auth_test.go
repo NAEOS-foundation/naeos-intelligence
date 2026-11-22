@@ -36,6 +36,7 @@ func TestPrincipalOwnerIDRejectsMissingHumanIdentity(t *testing.T) {
 		p    Principal
 	}{
 		{name: "missing issuer", p: Principal{Subject: "user-123", ClientID: "service-client"}},
+		{name: "whitespace issuer", p: Principal{Issuer: "   ", Subject: "user-123", ClientID: "service-client"}},
 		{name: "missing subject", p: Principal{Issuer: "https://issuer.example", ClientID: "service-client"}},
 		{name: "whitespace subject", p: Principal{Issuer: "https://issuer.example", Subject: "   ", ClientID: "service-client"}},
 	}
