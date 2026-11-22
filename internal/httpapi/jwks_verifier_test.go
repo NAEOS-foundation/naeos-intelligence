@@ -88,6 +88,34 @@ func TestJWKSVerifierAllowlistFiltersNAEOSScopes(t *testing.T) {
 	}
 }
 
+func TestJWKSVerifierEnforcesMaximumTokenLifetime(t *testing.T) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := &JWKSVerifier{
+		issuer: "https://issuer.test",
+		audience: "naeos-api",
+		keys: map[string]*ecdsa.PublicKey{"kid": &privateKey.PublicKey},
+		fetchedAt: time.Now(),
+	}
+	now := time.Now().Unix()
+	withinLimit := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{
+		"iss": verifier.issuer, "aud": verifier.audience, "sub": "user-123",
+		"iat": now, "exp": now + int64(jwtMaxLifetime.Seconds()),
+	})
+	if _, err := verifier.Verify(context.Background(), withinLimit); err != nil {
+		t.Fatalf("token at the 15-minute lifetime boundary should be accepted: %v", err)
+	}
+	overLimit := signedTestJWT(t, privateKey, "kid", "ES256", map[string]any{
+		"iss": verifier.issuer, "aud": verifier.audience, "sub": "user-123",
+		"iat": now, "exp": now + int64(jwtMaxLifetime.Seconds()) + 1,
+	})
+	if _, err := verifier.Verify(context.Background(), overLimit); err == nil {
+		t.Fatal("token lifetime exceeding 15 minutes must be rejected")
+	}
+}
+
 func TestJWKSVerifierRejectsWrongAlgorithmsAndExpiredClaims(t *testing.T) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil { t.Fatal(err) }
