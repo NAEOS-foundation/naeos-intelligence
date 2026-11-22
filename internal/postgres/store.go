@@ -21,6 +21,16 @@ type Store struct{ pool *pgxpool.Pool }
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
+func setOwnerContext(ctx context.Context, tx pgx.Tx, ownerID string) error {
+	if strings.TrimSpace(ownerID) == "" || len(ownerID) > 255 {
+		return errors.New("owner identity must contain 1 to 255 characters")
+	}
+	if _, err := tx.Exec(ctx, "SELECT set_config('naeos.owner_id', $1, true)", ownerID); err != nil {
+		return fmt.Errorf("set transaction owner context: %w", err)
+	}
+	return nil
+}
+
 func newUUID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -66,6 +76,9 @@ func (s *Store) Create(ctx context.Context, clientID, key string, input httpapi.
 		return httpapi.Request{}, false, err
 	}
 	defer tx.Rollback(ctx)
+	if err := setOwnerContext(ctx, tx, clientID); err != nil {
+		return httpapi.Request{}, false, err
+	}
 	var idem, payloadDigest any
 	if key != "" {
 		idem = key
@@ -168,7 +181,25 @@ func readRequest(ctx context.Context, q queryer, clientID, requestID string) (ht
 }
 
 func (s *Store) Get(ctx context.Context, clientID, requestID string) (httpapi.Request, error) {
-	return readRequest(ctx, s.pool, clientID, requestID)
+	if !validUUID(requestID) {
+		return httpapi.Request{}, httpapi.ErrNotFound
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return httpapi.Request{}, err
+	}
+	defer tx.Rollback(ctx)
+	if err := setOwnerContext(ctx, tx, clientID); err != nil {
+		return httpapi.Request{}, err
+	}
+	req, err := readRequest(ctx, tx, clientID, requestID)
+	if err != nil {
+		return httpapi.Request{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return httpapi.Request{}, err
+	}
+	return req, nil
 }
 
 func (s *Store) Cancel(ctx context.Context, clientID, requestID, correlationID string) (httpapi.Request, error) {
@@ -180,6 +211,9 @@ func (s *Store) Cancel(ctx context.Context, clientID, requestID, correlationID s
 		return httpapi.Request{}, err
 	}
 	defer tx.Rollback(ctx)
+	if err := setOwnerContext(ctx, tx, clientID); err != nil {
+		return httpapi.Request{}, err
+	}
 	var status httpapi.Status
 	err = tx.QueryRow(ctx, `SELECT status FROM intelligence_requests WHERE client_id=$1 AND id=$2::uuid FOR UPDATE`, clientID, requestID).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
