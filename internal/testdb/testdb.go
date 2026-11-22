@@ -75,8 +75,6 @@ func Bootstrap(ctx context.Context) (*Database, error) {
 		`GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime`,
 		`GRANT CREATE ON SCHEMA naeos_intelligence TO naeos_intelligence_migrator`,
 		`REVOKE CREATE ON SCHEMA naeos_intelligence FROM naeos_intelligence_runtime`,
-		`ALTER ROLE naeos_intelligence_runtime_login SET role TO 'naeos_intelligence_runtime'`,
-		`ALTER ROLE naeos_intelligence_migrator_login SET role TO 'naeos_intelligence_migrator'`,
 		`ALTER ROLE naeos_intelligence_runtime_login SET search_path TO 'pg_catalog, naeos_intelligence'`,
 		`ALTER ROLE naeos_intelligence_migrator_login SET search_path TO 'pg_catalog, naeos_intelligence'`,
 	}
