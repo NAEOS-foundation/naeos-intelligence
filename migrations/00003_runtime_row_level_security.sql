@@ -61,8 +61,9 @@ CREATE POLICY governance_audit_events_owner_insert
     );
 
 REVOKE ALL ON ALL TABLES IN SCHEMA naeos_intelligence FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA naeos_intelligence FROM PUBLIC;
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA naeos_intelligence FROM PUBLIC;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
 GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime;
 REVOKE CREATE ON SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
 GRANT SELECT, INSERT, UPDATE ON intelligence_requests TO naeos_intelligence_runtime;
