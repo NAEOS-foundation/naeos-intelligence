@@ -6,8 +6,8 @@ services:
       POSTGRES_USER: naeos
       POSTGRES_PASSWORD: naeos
       POSTGRES_DB: naeos_intelligence_dev
-      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:-naeos_runtime_dev_only}
-      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:-naeos_migrator_dev_only}
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:-run_dev}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:-mig_dev}
     ports:
       - "${INTELLIGENCE_POSTGRES_PORT:-5433}:5432"
     volumes:
@@ -28,7 +28,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://naeos_intelligence_runtime:${RUNTIME_DB_PASSWORD:-naeos_runtime_dev_only}@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      DATABASE_URL: postgres://naeos_intelligence_runtime:${RUNTIME_DB_PASSWORD:-run_dev}@postgres:5432/naeos_intelligence_dev?sslmode=disable
       NAEOS_INTELLIGENCE_HTTP_ADDR: 0.0.0.0:8080
       NAEOS_INTELLIGENCE_APP_ENVIRONMENT: development
       NAEOS_INTELLIGENCE_APP_LOG_LEVEL: debug
@@ -54,7 +54,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      MIGRATOR_DATABASE_URL: postgres://naeos_intelligence_migrator:${MIGRATOR_DB_PASSWORD:-naeos_migrator_dev_only}@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      MIGRATOR_DATABASE_URL: postgres://naeos_intelligence_migrator:${MIGRATOR_DB_PASSWORD:-mig_dev}@postgres:5432/naeos_intelligence_dev?sslmode=disable
       MIGRATIONS_DIR: /app/migrations
     entrypoint: ["/bin/naeos-intelligence-migrate"]
     volumes:
