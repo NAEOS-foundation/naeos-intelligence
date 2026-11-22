@@ -21,7 +21,7 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := Up(ctx, dsn, "../../migrations"); err != nil {
+	if err := Up(ctx, migrationDSN(t), "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	pool, err := OpenPool(ctx, dsn)
