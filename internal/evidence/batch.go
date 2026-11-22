@@ -33,6 +33,9 @@ func (s *Store) RecordEvents(ctx context.Context, clientID, requestID string, ev
 		return fmt.Errorf("begin evidence batch: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := setOwnerContext(ctx, tx, clientID); err != nil {
+		return err
+	}
 
 	for i, event := range events {
 		if strings.TrimSpace(event.EventType) == "" || len(event.EventType) > 128 {
