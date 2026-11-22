@@ -23,7 +23,7 @@ func TestRecordEventsPostgresAtomicReplayAndConflict(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := postgres.Up(ctx, dsn, "../../migrations"); err != nil {
+	if err := postgres.Up(ctx, migrationDSN(t), "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	pool, err := postgres.OpenPool(ctx, dsn)

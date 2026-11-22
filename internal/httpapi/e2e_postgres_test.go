@@ -46,7 +46,7 @@ func e2ePostgresDSN(t *testing.T) string {
 func e2ePostgresStore(t *testing.T, ctx context.Context) *postgres.Store {
 	t.Helper()
 	dsn := e2ePostgresDSN(t)
-	if err := postgres.Up(ctx, dsn, "../../migrations"); err != nil {
+	if err := postgres.Up(ctx, migrationDSN(t), "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	pool, err := postgres.OpenPool(ctx, dsn)

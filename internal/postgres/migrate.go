@@ -10,11 +10,11 @@ import (
 )
 
 const intelligenceSchema = "naeos_intelligence"
+const migratorRole = "naeos_intelligence_migrator"
 
-// Up applies migrations from the supplied directory. Call only in explicitly
-// approved environments; the application server does not run migrations.
-// The target schema must be provisioned beforehand; migrations fail closed if
-// it is missing instead of falling back to public.
+// Up applies migrations from the supplied directory using the dedicated
+// migrator role. The target schema must exist and the authenticated role
+// must match; the function refuses to fall back to public or runtime access.
 func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 	cfg, err := pgx.ParseConfig(databaseURL)
 	if err != nil {
@@ -31,6 +31,13 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 	if err := conn.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping migration database: %w", err)
 	}
+	var currentUser string
+	if err := conn.QueryRowContext(ctx, "SELECT current_user").Scan(&currentUser); err != nil {
+		return fmt.Errorf("verify migration role: %w", err)
+	}
+	if currentUser != migratorRole {
+		return fmt.Errorf("PostgreSQL migrator role must be %q, got %q", migratorRole, currentUser)
+	}
 
 	var schemaExists bool
 	if err := conn.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)", intelligenceSchema).Scan(&schemaExists); err != nil {
@@ -46,6 +53,9 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 	}
 	if err := goose.UpContext(ctx, conn, migrationsDir); err != nil {
 		return fmt.Errorf("apply migrations in schema %q: %w", intelligenceSchema, err)
+	}
+	if _, err := conn.ExecContext(ctx, "REVOKE ALL ON TABLE "+intelligenceSchema+".goose_db_version FROM "+runtimeRole); err != nil {
+		return fmt.Errorf("revoke runtime access to migration ledger: %w", err)
 	}
 	return nil
 }

@@ -6,10 +6,13 @@ services:
       POSTGRES_USER: naeos
       POSTGRES_PASSWORD: naeos
       POSTGRES_DB: naeos_intelligence_dev
+      RUNTIME_DB_PASSWORD: ${RUNTIME_DB_PASSWORD:-run_dev}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:-mig_dev}
     ports:
       - "${INTELLIGENCE_POSTGRES_PORT:-5433}:5432"
     volumes:
       - naeos-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U naeos -d naeos_intelligence_dev"]
       interval: 5s
@@ -25,7 +28,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://naeos:naeos@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      DATABASE_URL: postgres://naeos_intelligence_runtime:${RUNTIME_DB_PASSWORD:-run_dev}@postgres:5432/naeos_intelligence_dev?sslmode=disable
       NAEOS_INTELLIGENCE_HTTP_ADDR: 0.0.0.0:8080
       NAEOS_INTELLIGENCE_APP_ENVIRONMENT: development
       NAEOS_INTELLIGENCE_APP_LOG_LEVEL: debug
@@ -42,6 +45,7 @@ services:
     restart: unless-stopped
 
   naeos-intelligence-migrate:
+    profiles: ["migrate"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -50,7 +54,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://naeos:naeos@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      MIGRATOR_DATABASE_URL: postgres://naeos_intelligence_migrator:${MIGRATOR_DB_PASSWORD:-mig_dev}@postgres:5432/naeos_intelligence_dev?sslmode=disable
       MIGRATIONS_DIR: /app/migrations
     entrypoint: ["/bin/naeos-intelligence-migrate"]
     volumes:
