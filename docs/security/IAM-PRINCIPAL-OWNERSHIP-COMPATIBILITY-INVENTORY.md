@@ -66,3 +66,38 @@
 ## Status
 
 Compatibility inventory identifies migration risk but does not authorize changes to token behavior, storage ownership, database schema, Supabase configuration, staging or production.
+
+
+## Deep compatibility audit — persistence, approval, and ownership evidence
+
+**Audit date:** 2026-11-22  
+**Reviewed source baseline:** `main` at `bd396f55af39ff9ab763aae420fe9832b35402c0`
+
+### Confirmed findings
+
+1. **Owner key is persisted as `client_id` (not canonical actor).** `internal/httpapi/model.go` exposes Store methods taking `clientID`; `internal/postgres/store.go` inserts, selects, cancels, and idempotency-conflicts using `client_id`. Migration `00001_request_persistence.sql` defines a non-null `client_id`, a unique idempotency pair (`client_id,idempotency_key`), and an index `(client_id,created_at DESC)`. Directly changing owner key to `iss+sub` would affect ownership, idempotency and data access.
+2. **Cross-client isolation is tested, but canonical actor isolation is not.** `internal/httpapi/e2e_postgres_test.go` tests client-a vs client-b GET isolation and currently uses fake principals with only ClientID. This does not verify distinct issuer namespaces, subject/client distinction, owner binding migration, or same subject across issuers.
+3. **Request-transition audit actor is client-based.** Create/cancel persistence inserts `actor_type='client'` and `actor_id=clientID`. The transition table has actor_type/actor_id but no issuer/principal/client separation. Approval persistence records `approved_by` as actor_id and governance audit, but this method's signature receives `approvedBy` separately; call-site authorization/identity binding must be audited before treating that value as trusted actor attribution.
+4. **Approval storage is also ownership-keyed by client_id.** `internal/postgres/approval_store.go` selects request, approval decision and update rows by client_id. Its decision record has client_id plus approved_by; migration/backfill must consider approval rows and audit history, not only request rows.
+5. **Approval actor trust is a separate high-priority audit item.** `RecordApprovalDecision(... approvedBy ...)` validates non-empty/length but this storage method alone cannot establish that approvedBy is derived from authenticated context rather than caller input. Verify route/controller and tests; do not change it in this audit-only step.
+6. **Single-deployment tenancy remains the accepted boundary.** Current client_id is a storage owner partition, not proof of multi-tenant isolation. ADR-0003 remains applicable.
+
+### Migration/compatibility requirements derived from evidence
+
+- Preserve old client owner values as legacy ownership references; do not blindly backfill them to subject IDs.
+- Introduce an explicit, server-controlled owner-binding mapping (issuer + subject -> stable owner key) only after collision/identity and migration semantics are designed.
+- Maintain idempotency uniqueness behavior during migration and define how keys are handled if owners map/merge.
+- Plan for request rows, approval_decisions, request_transitions actor IDs, governance audit events, and indexes/constraints together.
+- Prove legacy-owner access, bound-owner access, unbound/revoked denial, cross-issuer same-sub isolation, and idempotency replay/conflict behavior with side-effect assertions.
+- Audit approval route identity source and verify actor attribution cannot be spoofed before any IAM code change.
+
+### Audit scope still open
+
+- Complete route and call-site audit for approval decision APIs and any other identity-consuming endpoints.
+- Full schema inventory for approval_decisions and governance_audit_events, and all query/update ownership predicates.
+- Core API allowlist implementation/tests and change ownership.
+- Token profile/issuer compatibility and session revocation implementation details.
+
+### Gate
+
+This section is static repository evidence only. No code, database, Supabase, runtime, staging or production changes were performed. Implementation remains blocked until owner-binding/backfill design and approval actor trust-source audit are documented and tested.
