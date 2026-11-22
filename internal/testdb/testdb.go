@@ -22,7 +22,6 @@ const (
 	runtimeLogin = "naeos_intelligence_runtime_login"
 	migratorGroup = "naeos_intelligence_migrator"
 	migratorLogin = "naeos_intelligence_migrator_login"
-	schemaName = "naeos_intelligence"
 )
 
 func Bootstrap(ctx context.Context) (*Database, error) {
