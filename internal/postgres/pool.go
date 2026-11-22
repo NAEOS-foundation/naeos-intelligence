@@ -59,7 +59,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		requestsSelect, requestsInsert, requestsUpdate, requestsDelete bool
 		transitionsSelect, transitionsInsert, transitionsUpdate, transitionsDelete bool
 		eventsSelect, eventsInsert, eventsUpdate, eventsDelete bool
-		attemptsAny, approvalsAny, gooseAny, externalTableAccess bool
+		attemptsAny, approvalsAny, gooseAny, externalTableAccess, externalSequenceAccess, externalSecurityDefinerAccess, publicCreate bool
 		membershipCount int
 	)
 	err := pool.QueryRow(ctx, `
@@ -77,6 +77,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		       COALESCE(has_schema_privilege(current_user,'naeos_intelligence','CREATE'),false),
 		       COALESCE(has_schema_privilege(current_user,'naeos_control_plane','USAGE'),false),
 		       COALESCE(has_schema_privilege(current_user,'naeos_identity','USAGE'),false),
+		       COALESCE(has_schema_privilege(current_user,'public','CREATE'),false),
 		       COALESCE(pg_get_userbyid(n.nspowner),''),
 		       current_setting('search_path'),
 		       has_table_privilege(current_user,'naeos_intelligence.intelligence_requests','SELECT'),
@@ -112,6 +113,22 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		             OR has_table_privilege(current_user,c.oid,'INSERT')
 		             OR has_table_privilege(current_user,c.oid,'UPDATE')
 		             OR has_table_privilege(current_user,c.oid,'DELETE'))
+		       ),
+		       EXISTS (
+		         SELECT 1 FROM pg_class c
+		         JOIN pg_namespace ns ON ns.oid=c.relnamespace
+		         WHERE c.relkind='S'
+		           AND ns.nspname IN ('public','naeos_control_plane','naeos_identity')
+		           AND (has_sequence_privilege(current_user,c.oid,'USAGE')
+		             OR has_sequence_privilege(current_user,c.oid,'SELECT')
+		             OR has_sequence_privilege(current_user,c.oid,'UPDATE'))
+		       ),
+		       EXISTS (
+		         SELECT 1 FROM pg_proc p
+		         JOIN pg_namespace ns ON ns.oid=p.pronamespace
+		         WHERE p.prosecdef
+		           AND ns.nspname IN ('public','naeos_control_plane','naeos_identity')
+		           AND has_function_privilege(current_user,p.oid,'EXECUTE')
 		       )
 		FROM pg_roles login
 		JOIN pg_roles runtime_group ON runtime_group.rolname='naeos_intelligence_runtime'
@@ -124,12 +141,12 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		&isMember, &membershipCount,
 		&groupCanLogin, &groupSuper, &groupCreateDB, &groupCreateRole, &groupBypass, &groupHasParent,
 		&migratorCanLogin, &migratorSuper, &migratorCreateDB, &migratorCreateRole, &migratorBypass, &migratorHasParent,
-		&schemaExists, &schemaUsage, &schemaCreate, &controlPlaneUsage, &identityUsage,
+		&schemaExists, &schemaUsage, &schemaCreate, &controlPlaneUsage, &identityUsage, &publicCreate,
 		&schemaOwner, &searchPath,
 		&requestsSelect, &requestsInsert, &requestsUpdate, &requestsDelete,
 		&transitionsSelect, &transitionsInsert, &transitionsUpdate, &transitionsDelete,
 		&eventsSelect, &eventsInsert, &eventsUpdate, &eventsDelete,
-		&attemptsAny, &approvalsAny, &gooseAny, &externalTableAccess,
+		&attemptsAny, &approvalsAny, &gooseAny, &externalTableAccess, &externalSequenceAccess, &externalSecurityDefinerAccess,
 	)
 	if err != nil {
 		return fmt.Errorf("verify PostgreSQL runtime role contract: %w", err)
@@ -140,11 +157,11 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
 		migratorCanLogin || migratorSuper || migratorCreateDB || migratorCreateRole || migratorBypass || migratorHasParent ||
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || schemaCreate ||
-		controlPlaneUsage || identityUsage || searchPath != runtimeSearchPath ||
+		controlPlaneUsage || identityUsage || publicCreate || searchPath != runtimeSearchPath ||
 		!requestsSelect || !requestsInsert || !requestsUpdate || requestsDelete ||
 		transitionsSelect || !transitionsInsert || transitionsUpdate || transitionsDelete ||
 		!eventsSelect || !eventsInsert || eventsUpdate || eventsDelete ||
-		attemptsAny || approvalsAny || gooseAny || externalTableAccess {
+		attemptsAny || approvalsAny || gooseAny || externalTableAccess || externalSequenceAccess || externalSecurityDefinerAccess {
 		return errors.New("PostgreSQL runtime role contract rejected: require dedicated non-privileged login, naeos_intelligence-only access, owner-scoped CRUD, append-only event writes, and no worker/approval privileges")
 	}
 	return nil
