@@ -99,6 +99,17 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 		t.Fatalf("open admin verification pool: %v", err)
 	}
 	defer adminPool.Close()
+	for _, query := range []string{
+		"SELECT * FROM public.crm_guard_test",
+		"SELECT * FROM naeos_control_plane.guard_test",
+		"SELECT * FROM naeos_identity.guard_test",
+		"SELECT * FROM naeos_intelligence.goose_db_version",
+		"CREATE TABLE naeos_intelligence.runtime_forbidden (id integer)",
+	} {
+		if _, err := pool.Exec(ctx, query); !isPermissionDenied(err) {
+			t.Fatalf("runtime isolation query %q should be denied with SQLSTATE 42501, got %v", query, err)
+		}
+	}
 	var transitionCount int
 	if err := adminPool.QueryRow(ctx, "SELECT count(*) FROM naeos_intelligence.request_transitions WHERE request_id=$1::uuid AND event_type='request.cancelled'", raceRequest.RequestID).Scan(&transitionCount); err != nil {
 		t.Fatalf("count cancellation transitions: %v", err)
