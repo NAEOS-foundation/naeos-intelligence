@@ -6,9 +6,9 @@
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`, [ADR-0003](../adr/20261110-single-tenant-mvp-baseline.md)
 
 > This brief provides options and provisional recommendations for the remaining IAM decisions. The MVP tenancy baseline is recorded in accepted ADR-0003; that decision does not close other IAM items or authorize provider-specific implementation.
-**Status:** Partially accepted — IAM-01 and IAM-02 accepted; `naeos-crm-production` selected as IdP; IAM-03 through IAM-14 remain open  
+**Status:** Partially accepted — IAM-01/02 accepted; IAM-04/05 and IAM-09 accepted for the human-session read-only API by ADR-0004 amendment; IAM-03, IAM-08, IAM-10/11, and IAM-14 remain open  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
-> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. IAM-03 through IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
+> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. The 2026-11-22 amendment to ADR-0004 accepts verified `iss + sub` as the human principal (IAM-04), keeps OAuth `client_id` separate (IAM-05), and derives read-only API ownership from that principal (IAM-09). IAM-03, IAM-08, IAM-10/11, and IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
 
 ## 1. Decision objective
 
@@ -65,7 +65,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Namespace principal identity by issuer (validated `iss + sub` or a stable server-side mapping). Keep client identity distinct from principal. For machine-to-machine callers, define an explicit service principal instead of treating `client_id` as a human actor. Persist both actor and client where the audit model supports it.
 
-**Maintainer decision:** Open; `client_id` versus `sub` and human/service actor mapping remain unresolved.
+**Maintainer decision:** Accepted for this human-session API phase by the 2026-11-22 ADR-0004 amendment: verified `iss + sub` is the canonical human principal; OAuth `client_id` remains a separate client attribute. Client-only/service principals are deferred and rejected by this phase.
 
 ### IAM-06 / IAM-07 — Tenant applicability and binding
 
@@ -83,7 +83,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Use layered authorization: narrow operation scopes/capabilities at API boundaries plus server-side resource ownership checks. Keep vocabulary small and map each endpoint/action explicitly. Decide whether ownership attaches to client, principal, or tenant before changing persistence semantics; do not infer a policy from the current fallback implementation.
 
-**Maintainer decision:** Accepted for the read-only API by ADR-0004: scopes plus server-side owner checks. `Principal.ClientID` claim source remains unresolved under IAM-04/05.
+**Maintainer decision:** Accepted for the read-only API by the 2026-11-22 ADR-0004 amendment: endpoint scopes plus server-side ownership derived from verified `iss + sub`; no public approval route or tool execution is authorized.
 
 ### IAM-10 — Token validation requirements
 
@@ -121,7 +121,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 1. Keep the accepted single-tenant logical boundary for MVP; reopen it only if a partner or deployment requirement calls for shared tenancy.
 2. Accept IAM-01 through IAM-03 (protocol, issuer, trust boundaries) after a partner/deployment model is known.
-3. Resolve IAM-04/05 actor/client semantics; the bounded API authorization and ownership contract for IAM-08/09 is accepted by ADR-0004.
+3. IAM-04/05/09 are accepted for the human-session read-only API by the ADR-0004 amendment; resolve the still-open IAM-08 trusted scope source and capability mapping before activation.
 4. Resolve IAM-10/11 token validation and lifecycle plus IAM-14 audit attribution; the in-process propagation and API denial contract for IAM-12/13 is accepted by ADR-0004.
 5. Record rationale and date in the worksheet and create accepted ADR(s).
 6. Align API Contract, Security Requirements, Data Model, traceability matrix, and Phase 5 implementation prompt.
@@ -133,7 +133,7 @@ Maintainer input is required for these questions; this document intentionally do
 
 - Does a future partner or deployment requirement require shared tenancy? If so, reopen IAM-06/07 before implementation.
 - Which IdP/issuer must the first partner integration use, if already known?
-- Are callers exclusively machine-to-machine, or will human users act through clients?
+- Human Supabase Auth sessions are the accepted caller model for this phase; do future partner requirements require a separate service-principal contract?
 - Is rapid token revocation required beyond short-lived tokens and key rotation?
 - What actor/client/tenant attribution and retention are mandatory for audit?
 
@@ -141,7 +141,7 @@ Maintainer input is required for these questions; this document intentionally do
 
 | Decision group | Maintainer outcome | Rationale / ADR | Date |
 |---|---|---|---|
-| IAM-01–05 | Pending | Partner and caller model not yet known; exact issuer and actor/client mapping remain open | Pending |
+| IAM-01–03 | Partially accepted / pending | IAM-01/02 accepted by ADR-005; IAM-03 issuer/audience pinning and live token evidence remain open | Pending |
 | IAM-06 | Accepted for MVP baseline | ADR-0003 | 2026-11-10 |
 | IAM-07 | Deferred for MVP | No tenant identity in the single-tenant baseline; reopen before shared tenancy | 2026-11-10 |
 | IAM-08–09 | Accepted for read-only API | ADR-0004; claim-to-client mapping remains open | 2026-11-10 |
@@ -149,7 +149,7 @@ Maintainer input is required for these questions; this document intentionally do
 | IAM-12–13 | Accepted for read-only API | ADR-0004 | 2026-11-10 |
 | IAM-01–02 | Accepted — Supabase Auth RS256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-11 |
 | IAM-03 | Pending — pin issuer/audience per environment after real-token verification | Pending | Pending |
-| IAM-04–05 | Pending | Pending | Pending |
+| IAM-04–05, IAM-09 | Accepted for human-session read-only API | ADR-0004 amendment; verified `iss + sub`, separate `client_id`, and server-derived owner key | 2026-11-22 |
 | IAM-06–07 | Pending | Pending | Pending |
-| IAM-08–09 | Pending | Pending | Pending |
+| IAM-08 | Partially accepted / pending | Endpoint scope enforcement and owner checks accepted; trusted scope source/mapping remains open | Pending |
 | IAM-10–14 | Pending | Pending | Pending |

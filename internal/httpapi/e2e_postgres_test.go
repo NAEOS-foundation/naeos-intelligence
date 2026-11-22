@@ -61,6 +61,8 @@ func e2ePostgresHandler(t *testing.T, ctx context.Context) (http.Handler, *postg
 	t.Helper()
 	store := e2ePostgresStore(t, ctx)
 	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "e2e-user",
 		ClientID: "e2e-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
@@ -71,6 +73,8 @@ func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http
 	t.Helper()
 	store := e2ePostgresStore(t, ctx)
 	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "e2e-user",
 		ClientID: "e2e-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
@@ -148,7 +152,7 @@ func TestE2EPostgresSubmitGetCancel(t *testing.T) {
 	}
 
 	// Verify via store directly
-	stored, err := store.Get(ctx, "e2e-client", accepted.RequestID)
+	stored, err := store.Get(ctx, httpapi.Principal{Issuer: "https://issuer.example/auth/v1", Subject: "e2e-user"}.OwnerID(), accepted.RequestID)
 	if err != nil || stored.Status != httpapi.StatusCancelled {
 		t.Fatalf("stored status=%s err=%v", stored.Status, err)
 	}
@@ -177,18 +181,22 @@ func TestE2EPostgresHealthAndReady(t *testing.T) {
 	}
 }
 
-func TestE2EPostgresCrossClientIsolation(t *testing.T) {
+func TestE2EPostgresSharedClientHumanOwnerIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	store := e2ePostgresStore(t, ctx)
 
 	authA := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
-		ClientID: "client-a",
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "user-a",
+		ClientID: "shared-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
 	authB := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
-		ClientID: "client-b",
+		Issuer: "https://issuer.example/auth/v1",
+		Subject: "user-b",
+		ClientID: "shared-client",
 		Scopes:   map[string]bool{"intelligence:write": true, "intelligence:read": true},
 	}}}
 	hA := httpapi.NewHandler(store, authA, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), nil)
@@ -210,7 +218,25 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 		t.Fatalf("decode accepted: %v", err)
 	}
 
-	// Client-b tries to get client-a's request -> 404
+	// Same OAuth client_id must not collapse two human subjects into one owner.
+	submitReqB := httptest.NewRequest(http.MethodPost, "/api/v1/intelligence/requests", strings.NewReader(body))
+	submitReqB.Header.Set("Content-Type", "application/json")
+	submitReqB.Header.Set("Authorization", "Bearer fake")
+	submitReqB.Header.Set("Idempotency-Key", "iso-key-"+t.Name())
+	submitRecB := httptest.NewRecorder()
+	hB.ServeHTTP(submitRecB, submitReqB)
+	if submitRecB.Code != http.StatusAccepted {
+		t.Fatalf("shared-client second submit status=%d, want 202: %s", submitRecB.Code, submitRecB.Body.String())
+	}
+	var acceptedB httpapi.Accepted
+	if err := json.Unmarshal(submitRecB.Body.Bytes(), &acceptedB); err != nil {
+		t.Fatalf("decode second accepted: %v", err)
+	}
+	if acceptedB.RequestID == accepted.RequestID {
+		t.Fatal("different human subjects sharing client_id must not share idempotency records")
+	}
+
+	// User B tries to get user A's request -> 404
 	getReq := httptest.NewRequest(http.MethodGet, accepted.StatusURL, nil)
 	getReq.Header.Set("Authorization", "Bearer fake")
 	getRec := httptest.NewRecorder()
@@ -224,6 +250,80 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 	hA.ServeHTTP(getRecA, getReq)
 	if getRecA.Code != http.StatusOK {
 		t.Fatalf("owner get status=%d, want 200: %s", getRecA.Code, getRecA.Body.String())
+	}
+}
+
+
+func TestE2EPostgresSharedClientHumanOwnerIsolationAcrossLifecycleEndpoints(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	store := e2ePostgresStore(t, ctx)
+	scopes := map[string]bool{"intelligence:read": true, "intelligence:write": true}
+	principalA := httpapi.Principal{Issuer: "https://issuer.example/auth/v1", Subject: "lifecycle-user-a", ClientID: "shared-client", Scopes: scopes}
+	principalB := httpapi.Principal{Issuer: "https://issuer.example/auth/v1", Subject: "lifecycle-user-b", ClientID: "shared-client", Scopes: scopes}
+
+	newHandler := func(principal httpapi.Principal) http.Handler {
+		registry := model.NewRegistry()
+		if err := registry.Register(&mockProvider{id: "owner-isolation-provider"}); err != nil {
+			t.Fatalf("register mock provider: %v", err)
+		}
+		orch := orchestrator.NewOrchestrator(
+			classifier.NewRuleClassifier(),
+			intctx.NewRuleBuilder(),
+			planner.NewRulePlanner(),
+			runtime.NewProcessor(registry, nil),
+		)
+		auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: principal}}
+		return httpapi.NewHandler(store, auth, ratelimit.NewLimiter(100, 100), httpapi.MustTestValidator(), orch)
+	}
+	hA, hB := newHandler(principalA), newHandler(principalB)
+
+	do := func(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer fake")
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	body := `{"purpose":"human owner lifecycle isolation","execution_mode":"analysis_only","context_sources":[{"type":"repository","reference":"github.com/naeos/test"}],"desired_outputs":["trace"]}`
+	submit := do(hA, http.MethodPost, "/api/v1/intelligence/requests", body)
+	if submit.Code != http.StatusAccepted {
+		t.Fatalf("submit status=%d, want 202: %s", submit.Code, submit.Body.String())
+	}
+	var accepted httpapi.Accepted
+	if err := json.Unmarshal(submit.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accepted response: %v", err)
+	}
+
+	// A shared OAuth client_id must not grant user B access to user A's request.
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "GET", method: http.MethodGet, path: accepted.StatusURL},
+		{name: "CANCEL", method: http.MethodPost, path: accepted.StatusURL + "/cancel"},
+		{name: "ANALYZE", method: http.MethodPost, path: accepted.StatusURL + "/analyze", body: `{}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := do(hB, tc.method, tc.path, tc.body)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("cross-owner %s status=%d, want 404: %s", tc.name, rec.Code, rec.Body.String())
+			}
+			var p struct { Code string `json:"code"` }
+			if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil || p.Code != "RESOURCE_NOT_FOUND" {
+				t.Fatalf("cross-owner %s response must be non-disclosing: code=%q err=%v", tc.name, p.Code, err)
+			}
+		})
+	}
+
+	ownerGet := do(hA, http.MethodGet, accepted.StatusURL, "")
+	if ownerGet.Code != http.StatusOK {
+		t.Fatalf("owner GET status=%d, want 200: %s", ownerGet.Code, ownerGet.Body.String())
 	}
 }
 

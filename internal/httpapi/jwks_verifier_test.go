@@ -51,6 +51,7 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 		"iss":       verifier.issuer,
 		"aud":       verifier.audience,
 		"client_id": "svc-crm",
+		"sub":       "user-123",
 		"exp":       now + 300,
 		"nbf":       now - 10,
 		"scope":     "intelligence:read intelligence:write",
@@ -60,7 +61,7 @@ func TestJWKSVerifierAcceptsValidRS256AndExtractsScopes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if principal.ClientID != "svc-crm" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
+	if principal.Issuer != verifier.issuer || principal.Subject != "user-123" || principal.ClientID != "svc-crm" || !principal.Scopes["intelligence:read"] || !principal.Scopes["intelligence:write"] {
 		t.Fatalf("unexpected principal: %+v", principal)
 	}
 }
@@ -222,6 +223,7 @@ func TestJWKSVerifierRejectsMissingOrMalformedRequiredClaims(t *testing.T) {
 		{name: "wrong issuer", mutate: func(c map[string]any) { c["iss"] = "https://attacker.test" }},
 		{name: "wrong audience", mutate: func(c map[string]any) { c["aud"] = []string{"other-api"} }},
 		{name: "missing identity", mutate: func(c map[string]any) { delete(c, "sub") }},
+		{name: "client_id cannot replace subject", mutate: func(c map[string]any) { c["client_id"] = "service-client"; delete(c, "sub") }},
 		{name: "blank identity", mutate: func(c map[string]any) { c["sub"] = "  " }},
 		{name: "malformed not-before", mutate: func(c map[string]any) { c["nbf"] = "not-a-timestamp" }},
 	}
