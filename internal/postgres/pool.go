@@ -13,7 +13,8 @@ const runtimeGroupRole = "naeos_intelligence_runtime"
 const runtimeLoginRole = "naeos_intelligence_runtime_login"
 const migratorGroupRole = "naeos_intelligence_migrator"
 const migratorLoginRole = "naeos_intelligence_migrator_login"
-const intelligenceSearchPath = "pg_catalog, naeos_intelligence"
+const runtimeSearchPath = "pg_catalog, naeos_intelligence"
+const migratorSearchPath = "naeos_intelligence, pg_catalog"
 
 // OpenPool creates a bounded runtime pool. It refuses privileged, shared, or
 // incorrectly scoped database identities before the application serves traffic.
@@ -25,7 +26,7 @@ func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if cfg.ConnConfig.RuntimeParams == nil {
 		cfg.ConnConfig.RuntimeParams = make(map[string]string)
 	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = intelligenceSearchPath
+	cfg.ConnConfig.RuntimeParams["search_path"] = runtimeSearchPath
 	cfg.ConnConfig.RuntimeParams["role"] = runtimeGroupRole
 	cfg.MaxConns = 12
 	cfg.MinConns = 0
@@ -139,7 +140,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
 		migratorCanLogin || migratorSuper || migratorCreateDB || migratorCreateRole || migratorBypass || migratorHasParent ||
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || schemaCreate ||
-		controlPlaneUsage || identityUsage || searchPath != intelligenceSearchPath ||
+		controlPlaneUsage || identityUsage || searchPath != runtimeSearchPath ||
 		!requestsSelect || !requestsInsert || !requestsUpdate || requestsDelete ||
 		transitionsSelect || !transitionsInsert || transitionsUpdate || transitionsDelete ||
 		!eventsSelect || !eventsInsert || eventsUpdate || eventsDelete ||
