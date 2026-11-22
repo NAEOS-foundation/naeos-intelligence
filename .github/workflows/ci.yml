@@ -69,6 +69,16 @@ jobs:
           set -euo pipefail
           docker compose config --quiet
           docker compose config --format json > "${RUNNER_TEMP}/compose.json"
+          jq '
+            def envkeys($service):
+              (.services[$service].environment // {}) as $env
+              | if ($env | type) == "object" then
+                  {shape:"object", keys:($env | keys), runtime_prefix:((($env.DATABASE_URL // "") | if type == "string" then .[0:48] else type end)), migrator_prefix:((($env.MIGRATOR_DATABASE_URL // "") | if type == "string" then .[0:52] else type end))}
+                elif ($env | type) == "array" then
+                  {shape:"array", keys:([$env[] | split("=")[0]] | sort), runtime_present:([$env[] | select(startswith("DATABASE_URL="))] | length > 0), migrator_present:([$env[] | select(startswith("MIGRATOR_DATABASE_URL="))] | length > 0)}
+                else {shape:($env | type)} end;
+            {api:envkeys("naeos-intelligence"), migrator:envkeys("naeos-intelligence-migrate")}
+          ' "${RUNNER_TEMP}/compose.json"
           jq -e '.services.postgres.ports[] | select(.target == 5432 and .published == "5433" and .host_ip == "127.0.0.1")' "${RUNNER_TEMP}/compose.json" >/dev/null
           jq -e '
             def envval($service; $key):
