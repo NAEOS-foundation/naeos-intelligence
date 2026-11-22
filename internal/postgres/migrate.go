@@ -23,7 +23,7 @@ func Up(ctx context.Context, databaseURL, migrationsDir string) error {
 	if cfg.RuntimeParams == nil {
 		cfg.RuntimeParams = make(map[string]string)
 	}
-	cfg.RuntimeParams["search_path"] = "pg_catalog, " + intelligenceSchema
+	cfg.RuntimeParams["search_path"] = intelligenceSchema + ", pg_catalog"
 
 	conn := stdlib.OpenDB(*cfg)
 	defer conn.Close()
