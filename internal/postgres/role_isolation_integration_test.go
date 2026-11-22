@@ -45,3 +45,29 @@ func TestRuntimeRolePrivilegeBoundary(t *testing.T) {
 		t.Fatal("runtime role unexpectedly had DELETE privilege")
 	}
 }
+
+func TestRuntimeRoleCannotApplyMigrations(t *testing.T) {
+	if os.Getenv("NAEOS_POSTGRES_INTEGRATION") != "1" {
+		t.Skip("set NAEOS_POSTGRES_INTEGRATION=1 to run PostgreSQL role isolation test")
+	}
+	runtimeDSN := os.Getenv("DATABASE_URL")
+	if runtimeDSN == "" {
+		t.Fatal("DATABASE_URL must be set to runtime DSN")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := Up(ctx, runtimeDSN, "../../migrations"); err == nil {
+		t.Fatal("runtime credentials unexpectedly accepted for migrations")
+	}
+}
+
+func TestMigratorRoleCannotOpenRuntimePool(t *testing.T) {
+	if os.Getenv("NAEOS_POSTGRES_INTEGRATION") != "1" {
+		t.Skip("set NAEOS_POSTGRES_INTEGRATION=1 to run PostgreSQL role isolation test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if _, err := OpenPool(ctx, migrationDSN(t)); err == nil {
+		t.Fatal("migrator credentials unexpectedly accepted for runtime pool")
+	}
+}
