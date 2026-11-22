@@ -43,6 +43,22 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	if replay || first.Status != httpapi.StatusAccepted {
 		t.Fatalf("first create replay=%v status=%s", replay, first.Status)
 	}
+
+	// FORCE RLS must hide owner rows when the transaction-local owner context
+	// is absent, even though the runtime role has table-level SELECT.
+	var unscopedCount int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM intelligence_requests WHERE id=$1::uuid", first.RequestID).Scan(&unscopedCount); err != nil {
+		t.Fatalf("query without owner context: %v", err)
+	}
+	if unscopedCount != 0 {
+		t.Fatalf("unscoped runtime query returned %d rows, want 0", unscopedCount)
+	}
+	if _, err := pool.Exec(ctx, "SELECT * FROM request_attempts LIMIT 1"); !isPermissionDenied(err) {
+		t.Fatalf("runtime must not read worker attempts, got %v", err)
+	}
+	if _, err := pool.Exec(ctx, "SELECT * FROM approval_decisions LIMIT 1"); !isPermissionDenied(err) {
+		t.Fatalf("runtime must not read approval decisions, got %v", err)
+	}
 	second, replay, err := store.Create(ctx, clientID, "idem-key", input, "correlation-test")
 	if err != nil {
 		t.Fatalf("idempotent replay: %v", err)
