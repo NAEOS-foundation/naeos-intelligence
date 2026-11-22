@@ -9,22 +9,25 @@ import (
 	"time"
 
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/testdb"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	if os.Getenv("NAEOS_POSTGRES_INTEGRATION") != "1" {
 		t.Skip("set NAEOS_POSTGRES_INTEGRATION=1 to run PostgreSQL integration test")
 	}
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		t.Fatal("DATABASE_URL must be set for PostgreSQL integration test")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := Up(ctx, dsn, "../../migrations"); err != nil {
+	database, err := testdb.Bootstrap(ctx)
+	if err != nil {
+		t.Fatalf("bootstrap isolated PostgreSQL test database: %v", err)
+	}
+	if err := Up(ctx, database.MigratorDSN, "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
-	pool, err := OpenPool(ctx, dsn)
+	pool, err := OpenPool(ctx, database.RuntimeDSN)
 	if err != nil {
 		t.Fatalf("open pool: %v", err)
 	}
@@ -91,8 +94,13 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	for cancelErr := range cancelErrors {
 		t.Errorf("concurrent cancellation: %v", cancelErr)
 	}
+	adminPool, err := pgxpool.New(ctx, database.AdminDSN)
+	if err != nil {
+		t.Fatalf("open admin verification pool: %v", err)
+	}
+	defer adminPool.Close()
 	var transitionCount int
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM request_transitions WHERE request_id=$1::uuid AND event_type='request.cancelled'", raceRequest.RequestID).Scan(&transitionCount); err != nil {
+	if err := adminPool.QueryRow(ctx, "SELECT count(*) FROM naeos_intelligence.request_transitions WHERE request_id=$1::uuid AND event_type='request.cancelled'", raceRequest.RequestID).Scan(&transitionCount); err != nil {
 		t.Fatalf("count cancellation transitions: %v", err)
 	}
 	if transitionCount != 1 {
@@ -103,20 +111,18 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 		t.Fatalf("final race request status=%s err=%v", finalRequest.Status, err)
 	}
 
-	attempt, err := store.CreateAttempt(ctx, first.RequestID)
-	if err != nil {
-		t.Fatalf("create attempt: %v", err)
+	if _, err := store.CreateAttempt(ctx, first.RequestID); !errors.Is(err, httpapi.ErrNotFound) {
+		t.Fatalf("runtime attempt creation must fail closed without owner/worker context, got %v", err)
 	}
-	if attempt.Status != "pending" || attempt.AttemptNumber != 1 {
-		t.Fatalf("unexpected attempt: %+v", attempt)
+	if err := store.StartAttempt(ctx, first.RequestID, 1, "worker-integration"); !isPermissionDenied(err) {
+		t.Fatalf("runtime must not update worker attempts, got %v", err)
 	}
-	if err = store.StartAttempt(ctx, first.RequestID, attempt.AttemptNumber, "worker-integration"); err != nil {
-		t.Fatalf("start attempt: %v", err)
+	if err := store.FinishAttempt(ctx, first.RequestID, 1, "failed", "transient", "simulated integration failure"); !isPermissionDenied(err) {
+		t.Fatalf("runtime must not finish worker attempts, got %v", err)
 	}
-	if err = store.FinishAttempt(ctx, first.RequestID, attempt.AttemptNumber, "failed", "transient", "simulated integration failure"); err != nil {
-		t.Fatalf("finish attempt: %v", err)
-	}
-	if err = store.FinishAttempt(ctx, first.RequestID, attempt.AttemptNumber, "succeeded", "", ""); !errors.Is(err, httpapi.ErrConflict) {
-		t.Fatalf("terminal transition must be one-shot, got %v", err)
-	}
+}
+
+func isPermissionDenied(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "42501"
 }
