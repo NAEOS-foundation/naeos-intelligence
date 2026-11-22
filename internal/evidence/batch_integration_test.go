@@ -10,23 +10,23 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/evidence"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/httpapi"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/testdb"
 )
 
 func TestRecordEventsPostgresAtomicReplayAndConflict(t *testing.T) {
 	if os.Getenv("NAEOS_POSTGRES_INTEGRATION") != "1" {
 		t.Skip("set NAEOS_POSTGRES_INTEGRATION=1 to run PostgreSQL evidence integration test")
 	}
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		t.Fatal("DATABASE_URL must be set for PostgreSQL evidence integration test")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := postgres.Up(ctx, dsn, "../../migrations"); err != nil {
+	database, err := testdb.Bootstrap(ctx)
+	if err != nil {
+		t.Fatalf("bootstrap isolated PostgreSQL test database: %v", err)
+	}
+	if err := postgres.Up(ctx, database.MigratorDSN, "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
-	pool, err := postgres.OpenPool(ctx, dsn)
+	pool, err := postgres.OpenPool(ctx, database.RuntimeDSN)
 	if err != nil {
 		t.Fatalf("open PostgreSQL pool: %v", err)
 	}
