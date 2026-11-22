@@ -181,7 +181,7 @@ func TestE2EPostgresHealthAndReady(t *testing.T) {
 	}
 }
 
-func TestE2EPostgresCrossClientIsolation(t *testing.T) {
+func TestE2EPostgresSharedClientHumanOwnerIsolation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -236,7 +236,7 @@ func TestE2EPostgresCrossClientIsolation(t *testing.T) {
 		t.Fatal("different human subjects sharing client_id must not share idempotency records")
 	}
 
-	// Client-b tries to get client-a's request -> 404
+	// User B tries to get user A's request -> 404
 	getReq := httptest.NewRequest(http.MethodGet, accepted.StatusURL, nil)
 	getReq.Header.Set("Authorization", "Bearer fake")
 	getRec := httptest.NewRecorder()
