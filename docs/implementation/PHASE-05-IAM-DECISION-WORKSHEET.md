@@ -17,10 +17,10 @@ Static inspection of `internal/httpapi/jwks_verifier.go` found the following cur
 - Requires HTTPS issuer and JWKS URL configuration, RS256 tokens, a trusted `kid`, valid signature, exact issuer, matching audience, and unexpired `exp`; a future non-zero `nbf` is rejected.
 - Refreshes cached JWKS data after five minutes or immediately when a token presents an unknown `kid`; JWKS requests have a five-second client timeout and a one-megabyte response limit. Lookup and fetch failures reject the token.
 - The current PR implementation requires non-empty verified `iss` and `sub`, preserves them separately on `Principal`, and does not use `client_id` as a human-identity fallback. The handler derives the owner key from `iss + sub`; `client_id` remains a separate attribute.
-- Accepts both space-delimited `scope` and array-valued `scopes`, combining their entries. The API's endpoint scopes and resource-owner checks are accepted by ADR-0004; claim parsing/precedence and the token-to-client mapping remain open.
+- Accepts both space-delimited `scope` and array-valued `scopes`, combining their entries. Endpoint scope enforcement is implemented, but the trusted NAEOS scope source and mapping remain open under IAM-08; do not treat generic Supabase `authenticated` role or user-editable metadata as an NAEOS capability.
 - Does not validate `iat`, impose a maximum token lifetime, or implement token revocation/introspection. Tenant identity and server-side client-to-tenant binding are not represented; this is consistent with the accepted single-tenant MVP baseline and must be revisited only if shared tenancy is introduced.
 
-The remaining token and identity-semantic gaps depend on IAM-01–05, IAM-10–11, and IAM-14. Do not resolve them by silently changing verifier behavior before the relevant decisions and contract updates are accepted. Reopen IAM-07 if shared tenancy becomes a requirement.
+The remaining identity and token gaps depend on IAM-03, IAM-08, IAM-10–11, and IAM-14. Do not resolve them by silently changing verifier behavior before the relevant decisions and contract updates are accepted. Reopen IAM-07 if shared tenancy becomes a requirement.
 
 ## 3. Decision register
 
@@ -88,7 +88,7 @@ Test cases must map to requirement IDs and produce retained CI evidence.
 | IAM-01–03, IAM-08, IAM-10–11, IAM-14 | Pending / gated | Issuer/audience, trusted scope mapping, token lifecycle, and durable actor-audit decisions remain unresolved | Pending |
 | IAM-06 | Accepted for MVP baseline | ADR-0003; no partner is selected, so this is a logical single-tenant boundary per deployment only | 2026-11-10 |
 | IAM-07 | Deferred for MVP | ADR-0003; reopen before shared tenancy or tenant identity is introduced | 2026-11-10 |
-| IAM-08, IAM-12–13 | Accepted for read-only API only | ADR-0004; endpoint scopes, server-derived request context, and non-disclosing denial behavior; trusted scope source remains open | 2026-11-10 |
+| IAM-08, IAM-12–13 | Partially accepted / accepted for read-only API | ADR-0004; endpoint enforcement, server-derived request context, and non-disclosing denial behavior accepted; trusted scope source/mapping remains open | 2026-11-10 |
 | IAM-04–05, IAM-09 | Accepted for human-session read-only API | ADR-0004 amendment; canonical issuer-qualified subject, separate client identity, and server-derived owner key | 2026-11-22 |
 | IAM-01 | Accepted: Supabase Auth session access JWT; RS256 only | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
 | IAM-02 | Accepted: `naeos-crm-production` Supabase Auth project (`oruykkehukoiipldzcvc`, Singapore) is the IdP; `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
