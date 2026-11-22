@@ -25,10 +25,7 @@ const (
 func Bootstrap(ctx context.Context) (*Database, error) {
 	adminDSN := os.Getenv("NAEOS_TEST_ADMIN_DATABASE_URL")
 	if adminDSN == "" {
-		adminDSN = os.Getenv("DATABASE_URL")
-	}
-	if adminDSN == "" {
-		return nil, fmt.Errorf("NAEOS_TEST_ADMIN_DATABASE_URL is required for PostgreSQL integration tests")
+		return nil, fmt.Errorf("NAEOS_TEST_ADMIN_DATABASE_URL is required; integration tests never fall back to DATABASE_URL")
 	}
 	runtimePassword := os.Getenv("NAEOS_TEST_RUNTIME_PASSWORD")
 	if runtimePassword == "" {
