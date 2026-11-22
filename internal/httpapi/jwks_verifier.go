@@ -21,6 +21,7 @@ const (
 	jwksCacheTTL = 5 * time.Minute
 	maxJWKSBytes = 1 << 20
 	jwtClockSkew = 60 * time.Second
+	jwtMaxLifetime = 15 * time.Minute
 )
 
 type JWKSVerifier struct {
@@ -140,6 +141,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, token string) (Principal, err
 		claims.Expires <= nowUnix-skew ||
 		claims.IssuedAt > nowUnix+skew ||
 		claims.IssuedAt >= claims.Expires ||
+		claims.Expires-claims.IssuedAt > int64(jwtMaxLifetime.Seconds()) ||
 		(claims.NotBefore != 0 && claims.NotBefore > nowUnix+skew) ||
 		(claims.NotBefore != 0 && claims.NotBefore >= claims.Expires) {
 		return Principal{}, errors.New("JWT claims failed validation")
