@@ -153,3 +153,13 @@ Maintainer input is required for these questions; this document intentionally do
 | IAM-06–07 | Pending | Pending | Pending |
 | IAM-08–09 | Pending | Pending | Pending |
 | IAM-10–14 | Pending | Pending | Pending |
+
+## Ratification amendment — 2026-11-22
+
+**Status: RATIFIED BY SOLE MAINTAINER; NON-PRODUCTION IMPLEMENTATION AUTHORIZED; STAGING AND PRODUCTION HOLD.** The five IAM decision selections are ratified as the design baseline. The single-maintainer model is disclosed; independent security review is unavailable. Compensating controls include threat-model review, requirement-mapped automated tests, CI, denied-side-effect checks, and retained evidence.
+
+**Ratified selections:** canonical human principal is validated `iss + sub`; a server-controlled capability registry is required with deny-by-default behavior; maximum human access-token lifetime is 900 seconds; a revocation lookup is required, with its authoritative source and consistency model still to be designed; Core repository metadata is classified as a shared platform resource, not tenant-owned. These selections do not close IAM-03 issuer/audience policy, IAM-05 OAuth client/service semantics, or IAM-14 durable audit attribution.
+
+**Open design gates:** exact issuer/audience and issuer compatibility proof; revocation lookup source/key, cache consistency and propagation; OAuth client/service actor semantics; IAM-14 audit attribution and retention; Core allowlist ownership and governance process. Resolve with evidence before claiming pilot readiness. Preserve ADR-0003 single-logical-tenant-per-deployment and ADR-0004 read-only scopes/server-side ownership.
+
+No staging or production change is authorized. Production remains untouched.

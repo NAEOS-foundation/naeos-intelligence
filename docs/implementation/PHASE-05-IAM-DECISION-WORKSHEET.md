@@ -92,3 +92,21 @@ Test cases must map to requirement IDs and produce retained CI evidence.
 | IAM-01 | Accepted: Supabase Auth session access JWT; RS256 only | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
 | IAM-02 | Accepted: `naeos-crm-production` Supabase Auth project (`oruykkehukoiipldzcvc`, Singapore) is the IdP; `naeos.db` (`kqmhpsftijskesjdovjm`, Tokyo) remains the Intelligence database | `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md` | 2026-11-11 |
 | IAM-03 through IAM-14 | Open — remain gated | Project selected; remaining issuer/audience, principal, tenant, authorization, validation, lifecycle, propagation, denial, and audit decisions still required | Pending |
+
+
+## Ratification amendment — 2026-11-22 (single-maintainer)
+
+**Decision status:** The sole maintainer ratified the five explicitly selected Phase 27 decisions on 2026-11-22, following explicit user approval. This recorded self-approval is not independent security review. The selections are recorded below without extending them to adjacent IAM decisions.
+
+- **Canonical human principal:** validated `iss + sub`; issuer namespace prevents collision.
+- **Identity boundary:** `iss + sub` is the canonical human principal. OAuth client and machine-service identity semantics beyond keeping `client_id` separate from human ownership remain open; no `sub`-to-client fallback is allowed.
+- **Capability registry:** server-controlled registry/grant state only; deny-by-default; generic authenticated role/user metadata cannot grant NAEOS capabilities.
+- **Revocation:** a revocation lookup is required. The authoritative source, lookup key, cache/consistency model, propagation target, and recovery details remain implementation design gates; lookup errors and indeterminate outcomes must fail closed.
+- **Human token lifetime:** maximum `exp - iat` 900 seconds (15 minutes) for the specified human token profile; service token profile separately governed. Actual issuer configuration compatibility must be verified, not assumed.
+- **Core repository metadata:** classified as a shared platform resource, not tenant-owned. Existing read-only/API allowlist controls remain subject to their separate implementation and evidence review; this classification does not assert that IAM-14 audit attribution is complete.
+
+**Governance disclosure:** Sole-maintainer review; independent reviewer unavailable. Compensating assurance: threat-model checklist, requirement-mapped negative tests, CI gates, side-effect verification, and audit evidence. **Implementation authorization:** incremental non-production implementation is authorized. Staging requires separate explicit authorization. Production is not authorized and remains untouched.
+
+**Evidence:** explicit user approval in ChatGPT conversation, 2026-11-22. Git ADR/PR evidence is to be linked once created.
+
+**Decision register reconciliation:** the explicit selections ratify canonical human principal (`iss + sub`), capability registry, maximum human access-token lifetime of 900 seconds, and a required revocation lookup. The shared Core repository classification is a separate Phase 27 architecture decision, not closure of IAM-14. IAM-03 issuer/audience policy, IAM-05 full OAuth client/service semantics, IAM-11 revocation source/consistency design, and IAM-14 durable audit attribution remain open or evidence-gated. Existing IAM-06/07, IAM-09, IAM-12/13 decisions retain their prior bounded scope.
