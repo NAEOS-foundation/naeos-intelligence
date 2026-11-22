@@ -18,9 +18,7 @@ type Database struct {
 }
 
 const (
-	runtimeGroup = "naeos_intelligence_runtime"
 	runtimeLogin = "naeos_intelligence_runtime_login"
-	migratorGroup = "naeos_intelligence_migrator"
 	migratorLogin = "naeos_intelligence_migrator_login"
 )
 
@@ -75,6 +73,16 @@ func Bootstrap(ctx context.Context) (*Database, error) {
 		`GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime`,
 		`GRANT CREATE ON SCHEMA naeos_intelligence TO naeos_intelligence_migrator`,
 		`REVOKE CREATE ON SCHEMA naeos_intelligence FROM naeos_intelligence_runtime`,
+		`CREATE SCHEMA IF NOT EXISTS naeos_control_plane`,
+		`CREATE SCHEMA IF NOT EXISTS naeos_identity`,
+		`CREATE TABLE IF NOT EXISTS public.crm_guard_test (id integer PRIMARY KEY)`,
+		`CREATE TABLE IF NOT EXISTS naeos_control_plane.guard_test (id integer PRIMARY KEY)`,
+		`CREATE TABLE IF NOT EXISTS naeos_identity.guard_test (id integer PRIMARY KEY)`,
+		`REVOKE ALL ON public.crm_guard_test FROM PUBLIC`,
+		`REVOKE ALL ON naeos_control_plane.guard_test FROM PUBLIC`,
+		`REVOKE ALL ON naeos_identity.guard_test FROM PUBLIC`,
+		`REVOKE ALL ON SCHEMA naeos_control_plane FROM naeos_intelligence_runtime, naeos_intelligence_migrator`,
+		`REVOKE ALL ON SCHEMA naeos_identity FROM naeos_intelligence_runtime, naeos_intelligence_migrator`,
 		`ALTER ROLE naeos_intelligence_runtime_login SET search_path TO 'pg_catalog, naeos_intelligence'`,
 		`ALTER ROLE naeos_intelligence_migrator_login SET search_path TO 'pg_catalog, naeos_intelligence'`,
 	}
