@@ -6,9 +6,9 @@
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`, [ADR-0003](../adr/20261110-single-tenant-mvp-baseline.md)
 
 > This brief provides options and provisional recommendations for the remaining IAM decisions. The MVP tenancy baseline is recorded in accepted ADR-0003; that decision does not close other IAM items or authorize provider-specific implementation.
-**Status:** Partially accepted — IAM-01/02 accepted; IAM-04/05 and IAM-09 accepted for the human-session read-only API by ADR-0004 amendment; IAM-03, IAM-08, IAM-10/11, and IAM-14 remain open  
+**Status:** Partially accepted — IAM-01/02 accepted; IAM-04/05 and IAM-09 accepted for the human-session read-only API by ADR-0004 amendment; IAM-03, IAM-08, IAM-11, and IAM-14 remain open; IAM-10's 900-second verifier limit is implemented but provider configuration evidence remains gated  
 **Related:** `PHASE-05-IAM-DECISION-WORKSHEET.md`, `API-CONTRACT.md`, `SECURITY-REQUIREMENTS.md`, `REQUIREMENT-TRACEABILITY-MATRIX.md`
-> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with RS256 for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. The 2026-11-22 amendment to ADR-0004 accepts verified `iss + sub` as the human principal (IAM-04), keeps OAuth `client_id` separate (IAM-05), and derives read-only API ownership from that principal (IAM-09). IAM-03, IAM-08, IAM-10/11, and IAM-14 remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
+> This brief remains a decision aid, not a complete accepted IAM specification. The maintainer has accepted Supabase Auth session JWTs with ES256 (P-256) for IAM-01 and selected the `naeos-crm-production` project (`oruykkehukoiipldzcvc`, Singapore) as the hosted IdP for IAM-02. The `naeos.db` project (`kqmhpsftijskesjdovjm`, Tokyo) remains the NAEOS Intelligence database. The 2026-11-22 amendment to ADR-0004 accepts verified `iss + sub` as the human principal (IAM-04), keeps OAuth `client_id` separate (IAM-05), and derives read-only API ownership from that principal (IAM-09). IAM-03 live token evidence, IAM-08 hook activation/claim evidence, IAM-10's verifier maximum lifetime (900 seconds) is implemented, but the Supabase Auth expiry setting and fresh-token evidence remain gated; IAM-11 authoritative session revocation and IAM-14 audit attribution remain open. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`. Provider-specific production activation remains gated.
 
 ## 1. Decision objective
 
@@ -36,7 +36,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 **Provisional recommendation:** Prefer standard OIDC/OAuth 2.0 JWT access tokens for a partner-facing pilot only if the issuer supports required validation and lifecycle controls. Evaluate opaque introspection if prompt revocation is a requirement. Avoid bespoke credentials absent a compelling constraint.
 
 **Maintainer decision:** Open; defer exact token format until a partner/deployment model is known.
-**Maintainer decision:** Accepted — Supabase Auth session access JWT; RS256 allowlist. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
+**Maintainer decision:** Accepted — Supabase Auth session access JWT; ES256 (P-256) allowlist. Live `alg`/`kid`/issuer/audience evidence remains required before activation. See `ADR-005-SUPABASE-AUTH-HOSTED-IDP.md`.
 
 ### IAM-02 — Identity provider / issuer authority
 
@@ -83,13 +83,13 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** Use layered authorization: narrow operation scopes/capabilities at API boundaries plus server-side resource ownership checks. Keep vocabulary small and map each endpoint/action explicitly. Decide whether ownership attaches to client, principal, or tenant before changing persistence semantics; do not infer a policy from the current fallback implementation.
 
-**Maintainer decision:** Accepted for the read-only API by the 2026-11-22 ADR-0004 amendment: endpoint scopes plus server-side ownership derived from verified `iss + sub`; no public approval route or tool execution is authorized.
+**Maintainer decision:** Accepted policy: only the dedicated `naeos_scopes` claim sourced from administrator-managed `app_metadata.naeos_scopes` grants allowlisted NAEOS capabilities. The repository SQL hook is reference-only; actual hook enablement and real-token evidence remain gated. Resource ownership is separately accepted by ADR-0004 amendment as verified `iss + sub`; no public approval route or tool execution is authorized.
 
 ### IAM-10 — Token validation requirements
 
 **Provisional recommendation:** Require algorithm allowlisting (no algorithm negotiation from token), trusted JWKS source, key selection, signature, issuer, audience, expiration, and explicit required claim/type checks. Define clock skew and treatment of `nbf`/`iat`; reject ambiguous or malformed claims. Tests should cover each requirement. This recommendation is a specification proposal, not an assertion that the current verifier fully satisfies it.
 
-**Maintainer decision:** Open; current checks are implementation evidence only. `iat`, maximum token lifetime, and required-claim profile need a separate decision.
+**Maintainer decision:** Implemented in PR #81: require `iss`, `aud`, `sub`, `exp`, and `iat`; apply 60-second skew; reject `exp - iat` greater than 900 seconds. The selected Supabase Auth project's actual JWT expiry setting and a freshly issued token within this limit remain unverified. Provider configuration was not changed.
 
 ### IAM-11 — Revocation and key rotation
 
@@ -97,7 +97,7 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 
 **Provisional recommendation:** For JWT pilot, establish short token lifetime and documented JWKS cache/rotation behavior first; define emergency revocation path and acceptable propagation time. If that cannot meet partner risk requirements, use introspection or hybrid. Specify behavior for unknown `kid`, JWKS outage, cache refresh, and old/new key overlap, and test those cases.
 
-**Maintainer decision:** Open; current JWKS cache behavior is not an accepted revocation or compromise-response policy.
+**Maintainer decision:** Baseline implemented: 5-minute local JWKS cache, immediate unknown-`kid` refresh, fail closed on refresh failure. Authoritative session/version revocation is not implemented; sign-out does not invalidate an already-issued JWT before `exp` in this offline verifier model. Acceptance remains open.
 
 ### IAM-12 — Identity propagation
 
@@ -120,9 +120,9 @@ Select a minimal, auditable identity and access-control baseline for NAEOS Intel
 ## 4. Suggested acceptance sequence
 
 1. Keep the accepted single-tenant logical boundary for MVP; reopen it only if a partner or deployment requirement calls for shared tenancy.
-2. Accept IAM-01 through IAM-03 (protocol, issuer, trust boundaries) after a partner/deployment model is known.
-3. IAM-04/05/09 are accepted for the human-session read-only API by the ADR-0004 amendment; resolve the still-open IAM-08 trusted scope source and capability mapping before activation.
-4. Resolve IAM-10/11 token validation and lifecycle plus IAM-14 audit attribution; the in-process propagation and API denial contract for IAM-12/13 is accepted by ADR-0004.
+2. IAM-01/02 are accepted (Supabase Auth ES256); IAM-03 policy pins issuer/audience per deployment, but safe live-token metadata and matching JWKS key evidence remain required.
+3. IAM-04/05/09 are accepted for the human-session read-only API by the ADR-0004 amendment; IAM-08 capability policy is accepted, but hook activation and real issued-token claim evidence must be verified before activation.
+4. Verify the Supabase Auth expiry setting and real-token evidence for IAM-10; resolve IAM-11 authoritative session revocation and IAM-14 audit attribution. The in-process propagation and API denial contract for IAM-12/13 is accepted by ADR-0004.
 5. Record rationale and date in the worksheet and create accepted ADR(s).
 6. Align API Contract, Security Requirements, Data Model, traceability matrix, and Phase 5 implementation prompt.
 7. Implement in scoped PRs with requirement-mapped tests and retained CI evidence. Do not mark requirements verified without evidence.
@@ -145,11 +145,13 @@ Maintainer input is required for these questions; this document intentionally do
 | IAM-06 | Accepted for MVP baseline | ADR-0003 | 2026-11-10 |
 | IAM-07 | Deferred for MVP | No tenant identity in the single-tenant baseline; reopen before shared tenancy | 2026-11-10 |
 | IAM-08–09 | Accepted for read-only API | ADR-0004; claim-to-client mapping remains open | 2026-11-10 |
-| IAM-10–11, IAM-14 | Pending | Token lifetime/revocation and actor-audit requirements remain open | Pending |
+| IAM-10 | Verifier limit implemented; provider evidence pending | Enforce `exp - iat ≤ 900s`; verify the selected Supabase Auth project's expiry setting and a fresh token | 2026-11-22 |
+| IAM-11, IAM-14 | Pending / gated | Authoritative session revocation and durable actor-audit attribution remain open | Pending |
 | IAM-12–13 | Accepted for read-only API | ADR-0004 | 2026-11-10 |
-| IAM-01–02 | Accepted — Supabase Auth RS256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-11 |
+| IAM-01–02 | Accepted — Supabase Auth ES256 JWT; `naeos-crm-production` selected as IdP | ADR-005 | 2026-11-16 |
 | IAM-03 | Pending — pin issuer/audience per environment after real-token verification | Pending | Pending |
 | IAM-04–05, IAM-09 | Accepted for human-session read-only API | ADR-0004 amendment; verified `iss + sub`, separate `client_id`, and server-derived owner key | 2026-11-22 |
 | IAM-06–07 | Pending | Pending | Pending |
-| IAM-08 | Partially accepted / pending | Endpoint scope enforcement and owner checks accepted; trusted scope source/mapping remains open | Pending |
-| IAM-10–14 | Pending | Pending | Pending |
+| IAM-08 | Policy accepted; activation evidence pending | Dedicated `naeos_scopes` claim from admin-managed `app_metadata`, allowlisted capabilities; hook activation and real-token evidence remain open | Pending |
+| IAM-10 | Verifier limit implemented; IdP evidence gated | 900-second maximum lifetime enforced in PR #81; live provider configuration and token evidence outstanding | 2026-11-22 |
+| IAM-11, IAM-14 | Open — remain gated | Authoritative session revocation and durable actor audit attribution remain outstanding | Pending |
