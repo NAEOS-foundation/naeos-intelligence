@@ -54,6 +54,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		sessionUser, currentUser, schemaOwner, searchPath string
 		loginCanLogin, loginSuper, loginCreateDB, loginCreateRole, loginBypass, loginInherit bool
 		isMember, groupCanLogin, groupSuper, groupCreateDB, groupCreateRole, groupBypass, groupHasParent bool
+		migratorCanLogin, migratorSuper, migratorCreateDB, migratorCreateRole, migratorBypass, migratorHasParent bool
 		schemaExists, schemaUsage, schemaCreate, controlPlaneUsage, identityUsage bool
 		requestsSelect, requestsInsert, requestsUpdate, requestsDelete bool
 		transitionsSelect, transitionsInsert, transitionsUpdate, transitionsDelete bool
@@ -69,6 +70,9 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		       runtime_group.rolcanlogin, runtime_group.rolsuper, runtime_group.rolcreatedb,
 		       runtime_group.rolcreaterole, runtime_group.rolbypassrls,
 		       EXISTS (SELECT 1 FROM pg_auth_members WHERE member=runtime_group.oid),
+		       migrator_group.rolcanlogin, migrator_group.rolsuper, migrator_group.rolcreatedb,
+		       migrator_group.rolcreaterole, migrator_group.rolbypassrls,
+		       EXISTS (SELECT 1 FROM pg_auth_members WHERE member=migrator_group.oid),
 		       n.oid IS NOT NULL, COALESCE(has_schema_privilege(current_user,'naeos_intelligence','USAGE'),false),
 		       COALESCE(has_schema_privilege(current_user,'naeos_intelligence','CREATE'),false),
 		       COALESCE(has_schema_privilege(current_user,'naeos_control_plane','USAGE'),false),
@@ -111,6 +115,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		       )
 		FROM pg_roles login
 		JOIN pg_roles runtime_group ON runtime_group.rolname='naeos_intelligence_runtime'
+		JOIN pg_roles migrator_group ON migrator_group.rolname='naeos_intelligence_migrator'
 		LEFT JOIN pg_namespace n ON n.nspname='naeos_intelligence'
 		WHERE login.rolname=session_user
 	`).Scan(
@@ -118,6 +123,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		&loginCanLogin, &loginSuper, &loginCreateDB, &loginCreateRole, &loginBypass, &loginInherit,
 		&isMember, &membershipCount,
 		&groupCanLogin, &groupSuper, &groupCreateDB, &groupCreateRole, &groupBypass, &groupHasParent,
+		&migratorCanLogin, &migratorSuper, &migratorCreateDB, &migratorCreateRole, &migratorBypass, &migratorHasParent,
 		&schemaExists, &schemaUsage, &schemaCreate, &controlPlaneUsage, &identityUsage,
 		&schemaOwner, &searchPath,
 		&requestsSelect, &requestsInsert, &requestsUpdate, &requestsDelete,
@@ -132,6 +138,7 @@ func verifyRuntimeRole(ctx context.Context, pool *pgxpool.Pool) error {
 		!loginCanLogin || loginSuper || loginCreateDB || loginCreateRole || loginBypass || !loginInherit ||
 		!isMember || membershipCount != 1 ||
 		groupCanLogin || groupSuper || groupCreateDB || groupCreateRole || groupBypass || groupHasParent ||
+		migratorCanLogin || migratorSuper || migratorCreateDB || migratorCreateRole || migratorBypass || migratorHasParent ||
 		!schemaExists || schemaOwner != migratorGroupRole || !schemaUsage || schemaCreate ||
 		controlPlaneUsage || identityUsage || searchPath != intelligenceSearchPath ||
 		!requestsSelect || !requestsInsert || !requestsUpdate || requestsDelete ||
