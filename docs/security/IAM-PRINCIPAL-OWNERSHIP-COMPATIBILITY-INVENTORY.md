@@ -125,3 +125,10 @@ This section is static repository evidence only. No code, database, Supabase, ru
 - Keep approval prototype out of public API; any future route requires identity-derived actor, policy checks, exact-action binding, expiry/single-use and negative tests.
 
 Static audit only; no code, runtime, configuration, database, staging, or production changes.
+
+
+### Follow-up Core allowlist helper review
+
+- Core helper `repositoryAllowed(repository, allowlist)` iterates comma-separated entries, trims whitespace, lowercases each configured entry, compares to the normalized requested `owner/name`, and rejects empty requested repository values. This confirms exact normalized string matching and avoids wildcard matching.
+- Repository endpoint performs method/scope check before allowlist check and before outbound GitHub lookup; however, side-effect/no-outbound assertions for all denied branches are not yet demonstrated from the inspected test evidence. Test suite file `internal/api/server_test.go` was inspected, but no distinct repository-specific unit test file was found by the path lookup.
+- **Assessment:** configuration normalization appears straightforward (case-insensitive + whitespace-trimmed comma list). Still open: verify endpoint sequence in complete source/test, allowed path and outbound call count with mock transport, malformed/path traversal input handling, and configuration ownership/change control.
