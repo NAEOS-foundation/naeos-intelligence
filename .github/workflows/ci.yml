@@ -29,7 +29,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres://naeos:naeos@localhost:5432/naeos_intelligence_test?sslmode=disable
+      NAEOS_TEST_ADMIN_DATABASE_URL: postgres://naeos:naeos@localhost:5432/naeos_intelligence_test?sslmode=disable
+      NAEOS_TEST_RUNTIME_PASSWORD: test-runtime
+      NAEOS_TEST_MIGRATOR_PASSWORD: test-migrator
       NAEOS_POSTGRES_INTEGRATION: "1"
     steps:
       - name: Runner preflight diagnostics

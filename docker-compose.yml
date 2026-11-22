@@ -16,16 +16,34 @@ services:
       timeout: 5s
       retries: 5
 
+  db-bootstrap:
+    image: postgres:16
+    container_name: naeos-intelligence-db-bootstrap
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: naeos
+      PGPASSWORD: naeos
+      PGDATABASE: naeos_intelligence_dev
+    volumes:
+      - ./docker/postgres/bootstrap.sql:/bootstrap.sql:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["psql -v ON_ERROR_STOP=1 -f /bootstrap.sql"]
+    restart: "no"
+
   naeos-intelligence:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: naeos-intelligence
     depends_on:
-      postgres:
-        condition: service_healthy
+      naeos-intelligence-migrate:
+        condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://naeos:naeos@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      DATABASE_URL: postgres://naeos_intelligence_runtime_login:naeos-runtime-dev@postgres:5432/naeos_intelligence_dev?sslmode=disable
       NAEOS_INTELLIGENCE_HTTP_ADDR: 0.0.0.0:8080
       NAEOS_INTELLIGENCE_APP_ENVIRONMENT: development
       NAEOS_INTELLIGENCE_APP_LOG_LEVEL: debug
@@ -47,14 +65,15 @@ services:
       dockerfile: Dockerfile
     container_name: naeos-intelligence-migrate
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://naeos:naeos@postgres:5432/naeos_intelligence_dev?sslmode=disable
+      MIGRATOR_DATABASE_URL: postgres://naeos_intelligence_migrator_login:naeos-migrator-dev@postgres:5432/naeos_intelligence_dev?sslmode=disable
       MIGRATIONS_DIR: /app/migrations
     entrypoint: ["/bin/naeos-intelligence-migrate"]
     volumes:
       - ./migrations:/app/migrations:ro
+    restart: "no"
 
 volumes:
   naeos-postgres-data:

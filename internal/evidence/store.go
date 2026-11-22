@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -32,6 +33,16 @@ type Store struct{ pool *pgxpool.Pool }
 
 // New creates a durable evidence store backed by the given connection pool.
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+
+func setOwnerContext(ctx context.Context, tx pgx.Tx, ownerID string) error {
+	if strings.TrimSpace(ownerID) == "" || len(ownerID) > 255 {
+		return errors.New("owner identity must contain 1 to 255 characters")
+	}
+	if _, err := tx.Exec(ctx, "SELECT set_config('naeos.owner_id', $1, true)", ownerID); err != nil {
+		return fmt.Errorf("set transaction owner context: %w", err)
+	}
+	return nil
+}
 
 func newUUID() (string, error) {
 	var b [16]byte
@@ -81,13 +92,24 @@ func (s *Store) RecordEvent(ctx context.Context, clientID, requestID, eventType,
 		return fmt.Errorf("generate event ID: %w", err)
 	}
 
-	_, err = s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin audit event: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := setOwnerContext(ctx, tx, clientID); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
 		INSERT INTO governance_audit_events
 			(id, request_id, client_id, event_type, actor_type, actor_id, message, correlation_id)
 		VALUES ($1,$2::uuid,$3,$4,$5,$6,$7,$8)`,
 		id, requestID, clientID, eventType, actorType, actorID, message, nullIfBlank(correlationID))
 	if err != nil {
 		return fmt.Errorf("insert audit event: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit audit event: %w", err)
 	}
 	return nil
 }
@@ -101,7 +123,15 @@ func (s *Store) GetEvents(ctx context.Context, clientID, requestID string) ([]Ev
 		return nil, errors.New("request ID must be a valid UUID")
 	}
 
-	rows, err := s.pool.Query(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin audit event query: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := setOwnerContext(ctx, tx, clientID); err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `
 		SELECT id::text, request_id::text, client_id, event_type, actor_type, actor_id, message,
 		       COALESCE(correlation_id, ''), created_at
 		FROM governance_audit_events
@@ -111,20 +141,25 @@ func (s *Store) GetEvents(ctx context.Context, clientID, requestID string) ([]Ev
 	if err != nil {
 		return nil, fmt.Errorf("query audit events: %w", err)
 	}
-	defer rows.Close()
 
 	var events []Event
 	for rows.Next() {
 		var e Event
 		if err := rows.Scan(&e.ID, &e.RequestID, &e.ClientID, &e.EventType, &e.ActorType,
 			&e.ActorID, &e.Message, &e.CorrelationID, &e.CreatedAt); err != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scan audit event: %w", err)
 		}
 		e.CreatedAt = e.CreatedAt.UTC()
 		events = append(events, e)
 	}
 	if err := rows.Err(); err != nil {
+		rows.Close()
 		return nil, fmt.Errorf("iterate audit events: %w", err)
+	}
+	rows.Close()
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit audit event query: %w", err)
 	}
 	return events, nil
 }

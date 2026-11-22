@@ -20,6 +20,7 @@ import (
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/postgres"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/ratelimit"
 	"github.com/NAEOS-foundation/naeos-intelligence/internal/runtime"
+	"github.com/NAEOS-foundation/naeos-intelligence/internal/testdb"
 )
 
 type e2eFakeVerifier struct {
@@ -31,25 +32,24 @@ func (f e2eFakeVerifier) Verify(context.Context, string) (httpapi.Principal, err
 	return f.principal, f.err
 }
 
-func e2ePostgresDSN(t *testing.T) string {
+func e2ePostgresDatabase(t *testing.T, ctx context.Context) *testdb.Database {
 	t.Helper()
 	if os.Getenv("NAEOS_POSTGRES_INTEGRATION") != "1" {
 		t.Skip("set NAEOS_POSTGRES_INTEGRATION=1 to run PostgreSQL E2E test")
 	}
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		t.Fatal("DATABASE_URL must be set for PostgreSQL E2E test")
+	database, err := testdb.Bootstrap(ctx)
+	if err != nil {
+		t.Fatalf("bootstrap isolated PostgreSQL test database: %v", err)
 	}
-	return dsn
+	return database
 }
 
-func e2ePostgresStore(t *testing.T, ctx context.Context) *postgres.Store {
+func e2ePostgresStoreWithDatabase(t *testing.T, ctx context.Context, database *testdb.Database) *postgres.Store {
 	t.Helper()
-	dsn := e2ePostgresDSN(t)
-	if err := postgres.Up(ctx, dsn, "../../migrations"); err != nil {
+	if err := postgres.Up(ctx, database.MigratorDSN, "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
-	pool, err := postgres.OpenPool(ctx, dsn)
+	pool, err := postgres.OpenPool(ctx, database.RuntimeDSN)
 	if err != nil {
 		t.Fatalf("open pool: %v", err)
 	}
@@ -57,9 +57,15 @@ func e2ePostgresStore(t *testing.T, ctx context.Context) *postgres.Store {
 	return postgres.New(pool)
 }
 
+func e2ePostgresStore(t *testing.T, ctx context.Context) *postgres.Store {
+	t.Helper()
+	return e2ePostgresStoreWithDatabase(t, ctx, e2ePostgresDatabase(t, ctx))
+}
+
 func e2ePostgresHandler(t *testing.T, ctx context.Context) (http.Handler, *postgres.Store) {
 	t.Helper()
-	store := e2ePostgresStore(t, ctx)
+	database := e2ePostgresDatabase(t, ctx)
+	store := e2ePostgresStoreWithDatabase(t, ctx, database)
 	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
 		Issuer: "https://issuer.example/auth/v1",
 		Subject: "e2e-user",
@@ -71,7 +77,8 @@ func e2ePostgresHandler(t *testing.T, ctx context.Context) (http.Handler, *postg
 
 func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http.Handler, *postgres.Store) {
 	t.Helper()
-	store := e2ePostgresStore(t, ctx)
+	database := e2ePostgresDatabase(t, ctx)
+	store := e2ePostgresStoreWithDatabase(t, ctx, database)
 	auth := httpapi.Authenticator{Verifier: e2eFakeVerifier{principal: httpapi.Principal{
 		Issuer: "https://issuer.example/auth/v1",
 		Subject: "e2e-user",
@@ -84,8 +91,7 @@ func e2ePostgresHandlerWithOrchestrator(t *testing.T, ctx context.Context) (http
 	reg := model.NewRegistry()
 	_ = reg.Register(&mockProvider{id: "e2e-provider"})
 	rp := runtime.NewProcessor(reg, nil)
-	dsn := e2ePostgresDSN(t)
-	pool, err := postgres.OpenPool(ctx, dsn)
+	pool, err := postgres.OpenPool(ctx, database.RuntimeDSN)
 	if err != nil {
 		t.Fatalf("open evidence pool: %v", err)
 	}

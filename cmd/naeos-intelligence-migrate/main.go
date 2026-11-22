@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	dsn := os.Getenv("DATABASE_URL")
+	dsn := os.Getenv("MIGRATOR_DATABASE_URL")
 	if dsn == "" {
-		fmt.Fprintln(os.Stderr, "DATABASE_URL is required")
+		fmt.Fprintln(os.Stderr, "MIGRATOR_DATABASE_URL is required")
 		os.Exit(2)
 	}
 	dir := os.Getenv("MIGRATIONS_DIR")
