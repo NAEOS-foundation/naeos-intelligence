@@ -29,7 +29,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres://naeos:naeos@localhost:5432/naeos_intelligence_test?sslmode=disable
+      DATABASE_ADMIN_URL: postgres://naeos:naeos@localhost:5432/naeos_intelligence_test?sslmode=disable
+      DATABASE_URL: postgres://naeos_intelligence_runtime:runtime-ci-password@localhost:5432/naeos_intelligence_test?sslmode=disable
+      MIGRATOR_DATABASE_URL: postgres://naeos_intelligence_migrator:migrator-ci-password@localhost:5432/naeos_intelligence_test?sslmode=disable
       NAEOS_POSTGRES_INTEGRATION: "1"
     steps:
       - name: Runner preflight diagnostics
@@ -79,9 +81,22 @@ jobs:
           if-no-files-found: error
       - name: Download modules
         run: go mod download
-      - name: Provision isolated test schema
+      - name: Provision isolated test roles and schema
         run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE SCHEMA naeos_intelligence;'
+          psql "$DATABASE_ADMIN_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE naeos_intelligence_runtime LOGIN PASSWORD 'runtime-ci-password'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+          CREATE ROLE naeos_intelligence_migrator LOGIN PASSWORD 'migrator-ci-password'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+          CREATE SCHEMA naeos_intelligence AUTHORIZATION naeos_intelligence_migrator;
+          GRANT CONNECT ON DATABASE naeos_intelligence_test TO naeos_intelligence_runtime, naeos_intelligence_migrator;
+          GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime;
+          GRANT USAGE, CREATE ON SCHEMA naeos_intelligence TO naeos_intelligence_migrator;
+          ALTER DEFAULT PRIVILEGES FOR ROLE naeos_intelligence_migrator IN SCHEMA naeos_intelligence
+            GRANT SELECT, INSERT, UPDATE ON TABLES TO naeos_intelligence_runtime;
+          ALTER DEFAULT PRIVILEGES FOR ROLE naeos_intelligence_migrator IN SCHEMA naeos_intelligence
+            GRANT USAGE, SELECT ON SEQUENCES TO naeos_intelligence_runtime;
+          SQL
       - name: Regenerate and verify third-party notices
         run: |
           python3 scripts/generate-third-party-notices.py
