@@ -66,7 +66,8 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA naeos_intelligence FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
 GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime;
 REVOKE CREATE ON SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
-GRANT SELECT, INSERT, UPDATE ON intelligence_requests TO naeos_intelligence_runtime;
+GRANT SELECT, INSERT ON intelligence_requests TO naeos_intelligence_runtime;
+GRANT UPDATE (status, updated_at) ON intelligence_requests TO naeos_intelligence_runtime;
 GRANT INSERT ON request_transitions TO naeos_intelligence_runtime;
 GRANT SELECT, INSERT ON governance_audit_events TO naeos_intelligence_runtime;
 REVOKE ALL ON request_attempts, approval_decisions, goose_db_version FROM naeos_intelligence_runtime;
@@ -75,7 +76,8 @@ REVOKE ALL ON request_attempts, approval_decisions, goose_db_version FROM naeos_
 REVOKE ALL ON request_attempts, approval_decisions, goose_db_version FROM naeos_intelligence_runtime;
 REVOKE SELECT, INSERT ON governance_audit_events FROM naeos_intelligence_runtime;
 REVOKE INSERT ON request_transitions FROM naeos_intelligence_runtime;
-REVOKE SELECT, INSERT, UPDATE ON intelligence_requests FROM naeos_intelligence_runtime;
+REVOKE UPDATE (status, updated_at) ON intelligence_requests FROM naeos_intelligence_runtime;
+REVOKE SELECT, INSERT ON intelligence_requests FROM naeos_intelligence_runtime;
 REVOKE USAGE ON SCHEMA naeos_intelligence FROM naeos_intelligence_runtime;
 
 DROP POLICY governance_audit_events_owner_insert ON governance_audit_events;
