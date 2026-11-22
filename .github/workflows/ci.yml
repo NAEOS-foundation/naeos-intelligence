@@ -70,8 +70,24 @@ jobs:
           docker compose config --quiet
           docker compose config --format json > "${RUNNER_TEMP}/compose.json"
           jq -e '.services.postgres.ports[] | select(.target == 5432 and .published == "5433" and .host_ip == "127.0.0.1")' "${RUNNER_TEMP}/compose.json" >/dev/null
-          jq -e '(.services."naeos-intelligence".environment.DATABASE_URL | startswith("postgres://naeos_intelligence_runtime:")) and (.services."naeos-intelligence".environment.MIGRATOR_DATABASE_URL == null)' "${RUNNER_TEMP}/compose.json" >/dev/null
-          jq -e '(.services."naeos-intelligence-migrate".environment.MIGRATOR_DATABASE_URL | startswith("postgres://naeos_intelligence_migrator:")) and (.services."naeos-intelligence-migrate".environment.DATABASE_URL == null)' "${RUNNER_TEMP}/compose.json" >/dev/null
+          jq -e '
+            def envval($service; $key):
+              (.services[$service].environment // {}) as $env
+              | if ($env | type) == "object" then ($env[$key] // "")
+                elif ($env | type) == "array" then ([ $env[] | select(startswith($key + "=")) | ltrimstr($key + "=") ][0] // "")
+                else "" end;
+            (envval("naeos-intelligence"; "DATABASE_URL") | startswith("postgres://naeos_intelligence_runtime:"))
+            and (envval("naeos-intelligence"; "MIGRATOR_DATABASE_URL") == "")
+          ' "${RUNNER_TEMP}/compose.json" >/dev/null
+          jq -e '
+            def envval($service; $key):
+              (.services[$service].environment // {}) as $env
+              | if ($env | type) == "object" then ($env[$key] // "")
+                elif ($env | type) == "array" then ([ $env[] | select(startswith($key + "=")) | ltrimstr($key + "=") ][0] // "")
+                else "" end;
+            (envval("naeos-intelligence-migrate"; "MIGRATOR_DATABASE_URL") | startswith("postgres://naeos_intelligence_migrator:"))
+            and (envval("naeos-intelligence-migrate"; "DATABASE_URL") == "")
+          ' "${RUNNER_TEMP}/compose.json" >/dev/null
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
