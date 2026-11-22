@@ -24,6 +24,30 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap isolated PostgreSQL test database: %v", err)
 	}
+	adminPool, err := pgxpool.New(ctx, database.AdminDSN)
+	if err != nil {
+		t.Fatalf("open admin verification pool: %v", err)
+	}
+	defer adminPool.Close()
+
+	// Both application identities must fail closed if they can execute an
+	// externally-owned SECURITY DEFINER function outside the Intelligence schema.
+	if _, err := adminPool.Exec(ctx, `
+		CREATE FUNCTION public.runtime_security_definer_probe()
+		RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'
+	`); err != nil {
+		t.Fatalf("create external SECURITY DEFINER probe: %v", err)
+	}
+	if _, err := OpenPool(ctx, database.RuntimeDSN); err == nil {
+		t.Fatal("runtime identity accepted executable external SECURITY DEFINER function")
+	}
+	if err := Up(ctx, database.MigratorDSN, "../../migrations"); err == nil {
+		t.Fatal("migrator identity accepted executable external SECURITY DEFINER function")
+	}
+	if _, err := adminPool.Exec(ctx, "DROP FUNCTION public.runtime_security_definer_probe()"); err != nil {
+		t.Fatalf("drop external SECURITY DEFINER probe: %v", err)
+	}
+
 	if err := Up(ctx, database.MigratorDSN, "../../migrations"); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
@@ -52,6 +76,25 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	}
 	if unscopedCount != 0 {
 		t.Fatalf("unscoped runtime query returned %d rows, want 0", unscopedCount)
+	}
+	wrongOwnerTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin wrong-owner RLS probe: %v", err)
+	}
+	if _, err := wrongOwnerTx.Exec(ctx, "SELECT set_config('naeos.owner_id', $1, true)", "different-issuer-qualified-owner"); err != nil {
+		_ = wrongOwnerTx.Rollback(ctx)
+		t.Fatalf("set wrong owner context: %v", err)
+	}
+	var wrongOwnerCount int
+	if err := wrongOwnerTx.QueryRow(ctx, "SELECT count(*) FROM intelligence_requests WHERE id=$1::uuid", first.RequestID).Scan(&wrongOwnerCount); err != nil {
+		_ = wrongOwnerTx.Rollback(ctx)
+		t.Fatalf("query under wrong owner context: %v", err)
+	}
+	if err := wrongOwnerTx.Commit(ctx); err != nil {
+		t.Fatalf("commit wrong-owner RLS probe: %v", err)
+	}
+	if wrongOwnerCount != 0 {
+		t.Fatalf("RLS exposed %d rows under a different owner context", wrongOwnerCount)
 	}
 	if _, err := pool.Exec(ctx, "SELECT * FROM request_attempts LIMIT 1"); !isPermissionDenied(err) {
 		t.Fatalf("runtime must not read worker attempts, got %v", err)
@@ -110,11 +153,6 @@ func TestPostgresStoreLifecycleAndIdempotency(t *testing.T) {
 	for cancelErr := range cancelErrors {
 		t.Errorf("concurrent cancellation: %v", cancelErr)
 	}
-	adminPool, err := pgxpool.New(ctx, database.AdminDSN)
-	if err != nil {
-		t.Fatalf("open admin verification pool: %v", err)
-	}
-	defer adminPool.Close()
 	var publicRequestAbsent, schemaRequestPresent, publicLedgerAbsent, schemaLedgerPresent bool
 	if err := adminPool.QueryRow(ctx, `
 		SELECT to_regclass('public.intelligence_requests') IS NULL,
