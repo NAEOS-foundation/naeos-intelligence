@@ -96,17 +96,17 @@ Test cases must map to requirement IDs and produce retained CI evidence.
 
 ## Ratification amendment — 2026-11-22 (single-maintainer)
 
-**Decision status:** IAM-03 through IAM-05, IAM-10/11/14 baseline decisions ratified by the sole maintainer on 2026-11-22, following explicit user approval in the ChatGPT conversation. This recorded self-approval is not independent security review.
+**Decision status:** The sole maintainer ratified the five explicitly selected Phase 27 decisions on 2026-11-22, following explicit user approval. This recorded self-approval is not independent security review. The selections are recorded below without extending them to adjacent IAM decisions.
 
 - **Canonical human principal:** validated `iss + sub`; issuer namespace prevents collision.
-- **Actor/client/service distinction:** OAuth `client_id` remains separate; service identities explicitly typed; no fallback from `sub` to client ID.
+- **Identity boundary:** `iss + sub` is the canonical human principal. OAuth client and machine-service identity semantics beyond keeping `client_id` separate from human ownership remain open; no `sub`-to-client fallback is allowed.
 - **Capability registry:** server-controlled registry/grant state only; deny-by-default; generic authenticated role/user metadata cannot grant NAEOS capabilities.
-- **Revocation:** authoritative session/version lookup selected; lookup error/timeout/indeterminate state fail closed. Store/key, cache/consistency, propagation target, and recovery details remain implementation design gates.
+- **Revocation:** a revocation lookup is required. The authoritative source, lookup key, cache/consistency model, propagation target, and recovery details remain implementation design gates; lookup errors and indeterminate outcomes must fail closed.
 - **Human token lifetime:** maximum `exp - iat` 900 seconds (15 minutes) for the specified human token profile; service token profile separately governed. Actual issuer configuration compatibility must be verified, not assumed.
-- **Core repository metadata:** shared platform integration resource, read-only, authorized service principal, explicit platform allowlist; explicitly not tenant-isolated. This does not alter Intelligence ADR-0003 single-logical-tenant-per-deployment or ADR-0004 read-only scopes/server-side ownership.
+- **Core repository metadata:** classified as a shared platform resource, not tenant-owned. Existing read-only/API allowlist controls remain subject to their separate implementation and evidence review; this classification does not assert that IAM-14 audit attribution is complete.
 
 **Governance disclosure:** Sole-maintainer review; independent reviewer unavailable. Compensating assurance: threat-model checklist, requirement-mapped negative tests, CI gates, side-effect verification, and audit evidence. **Implementation authorization:** incremental non-production implementation is authorized. Staging requires separate explicit authorization. Production is not authorized and remains untouched.
 
 **Evidence:** explicit user approval in ChatGPT conversation, 2026-11-22. Git ADR/PR evidence is to be linked once created.
 
-**Decision register reconciliation:** supersedes the worksheet's earlier pending wording for IAM-03–05, IAM-10/11, and IAM-14. IAM-06/07 and IAM-08/09, IAM-12/13 remain as previously accepted/deferred within their documented scope.
+**Decision register reconciliation:** the explicit selections ratify canonical human principal (`iss + sub`), capability registry, maximum human access-token lifetime of 900 seconds, and a required revocation lookup. The shared Core repository classification is a separate Phase 27 architecture decision, not closure of IAM-14. IAM-03 issuer/audience policy, IAM-05 full OAuth client/service semantics, IAM-11 revocation source/consistency design, and IAM-14 durable audit attribution remain open or evidence-gated. Existing IAM-06/07, IAM-09, IAM-12/13 decisions retain their prior bounded scope.
