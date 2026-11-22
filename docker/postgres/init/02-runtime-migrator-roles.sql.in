@@ -1,0 +1,34 @@
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'naeos_intelligence_runtime') THEN
+        CREATE ROLE naeos_intelligence_runtime LOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'naeos_intelligence_migrator') THEN
+        CREATE ROLE naeos_intelligence_migrator LOGIN;
+    END IF;
+END
+$$;
+
+ALTER ROLE naeos_intelligence_runtime
+    PASSWORD :'runtime_password'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+ALTER ROLE naeos_intelligence_migrator
+    PASSWORD :'migrator_password'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+
+CREATE SCHEMA IF NOT EXISTS naeos_intelligence
+    AUTHORIZATION naeos_intelligence_migrator;
+
+REVOKE ALL ON SCHEMA naeos_intelligence FROM PUBLIC;
+GRANT USAGE ON SCHEMA naeos_intelligence TO naeos_intelligence_runtime;
+GRANT USAGE, CREATE ON SCHEMA naeos_intelligence TO naeos_intelligence_migrator;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE naeos_intelligence_migrator
+    IN SCHEMA naeos_intelligence
+    GRANT SELECT, INSERT, UPDATE ON TABLES TO naeos_intelligence_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE naeos_intelligence_migrator
+    IN SCHEMA naeos_intelligence
+    GRANT USAGE, SELECT ON SEQUENCES TO naeos_intelligence_runtime;
+
+GRANT CONNECT ON DATABASE :"POSTGRES_DB" TO naeos_intelligence_runtime;
+GRANT CONNECT ON DATABASE :"POSTGRES_DB" TO naeos_intelligence_migrator;
